@@ -1,4 +1,5 @@
 from lsst.pipe.tasks.imageDifference import ImageDifferenceTask
+from lsst.ip.diffim import ZogyImagePsfMatchTask as zt
 import lsst.afw.display as afwDisplay
 from lsst.daf.butler import Butler
 import matplotlib.pyplot as plt
@@ -785,7 +786,144 @@ def ccd_to_detector_number(ccd):
 
 def Select_largest_flux(data_sub,objects, na=6):
     """
+    Uses source extractor to select the brightest detected source
+
+    Input
+    -----
+    data_sub : [np.matrix]
+    objects : 
+    na :
+
+    Output
+    -----
+    objects[j]
     """
     flux, fluxerr, flag = sep.sum_circle(data_sub, objects['x'], objects['y'],na*objects['a'])
     j, = np.where(flux == max(flux))
     return objects[j]    
+
+def Find_coadd(repo, collection_coadd, ra, dec, instrument='DECam', plot=False, cutout=50):
+    """
+    Finds coadd of corresponding source in ra dec position
+
+    Input
+    -----
+    collection_coadd : [str] Name of the collection corresponding to the coadds
+    ra : [float] right ascention in decimal degrees
+    dec : [float] declination in decimal degrees
+    
+    Output
+    -----
+    dataId : [dict] Data Id of the coadd
+    """
+
+    dataId = 0
+    butler = Butler(repo)
+    registry = butler.registry
+    for ref in registry.queryDatasets('goodSeeingCoadd', collections = collection_coadd,instrument=instrument):
+        coadd = butler.get('goodSeeingCoadd', collections=collection_coadd, instrument=instrument, dataId = ref.dataId.full)
+        
+        x_pix, y_pix = radec_to_pixel(ra,dec,coadd.getWcs())
+        obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+        x_half_width = cutout
+        y_half_width = cutout
+        bbox = lsst.geom.Box2I()
+        bbox.include(lsst.geom.Point2I(x_pix - x_half_width, y_pix - y_half_width))
+        bbox.include(lsst.geom.Point2I(x_pix + x_half_width, y_pix + y_half_width))
+        try:
+            afwDisplay.setDefaultMaskTransparency(100)
+            afwDisplay.setDefaultBackend('matplotlib')
+
+            coadd_cutout = coadd.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+
+            if plot:        
+                fig = plt.figure(figsize=(10, 5))
+                stamp_display = []
+
+                fig.add_subplot(1,2,1)
+                stamp_display.append(afwDisplay.Display(frame=fig))
+                stamp_display[0].scale('linear', -1, 10)
+                stamp_display[0].mtv(coadd_cutout)
+                plt.title('Coadd of source in ra {} dec {}'. format(ra,dec), fontsize=17)
+                plt.tight_layout()
+            dataId = ref.dataId.full
+            break
+        except:
+            pass
+    return dataId
+
+
+
+def zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r, instrument = 'DECam', plot_diffexp=False, plot_coadd = False, cutout=50):
+    """
+    Does Zogy Image differencing and plots result
+    
+    
+    """
+    butler = Butler(repo)
+    dataId = Find_coadd(collection_coadd, ra, dec, instrument=instrument, plot=plot_coadd, cutout=cutout)
+    coadd =  butler.get('goodSeeingCoadd', collections=collection_coadd, instrument=instrument, dataId = dataId)
+    wcs = coadd.getWcs()
+    flux = []
+    fluxerr = []
+    flag = []
+    dates = []
+    arsec_to_pixel = 0.263
+    radii = r/arsec_to_pixel
+    for visit in visits:
+        calexp = butler.get('calexp', visit= visits, detector= ccd_num, instrument=instrument, collections=collection_calexp)
+        zogy = zt()
+        zogy.emptyMetadata()
+        results = zogy.run(scienceExposure = calexp, templateExposure=coadd)
+        diffexp = results.getDict()['diffExp']
+        data = np.asarray(diffexp.image.array, dtype='float') 
+        x_pix, y_pix = radec_to_pixel(ra,dec,wcs)
+        f, ferr, flg = sep.sum_circle(data, [x_pix], [y_pix], radii, var = np.asarray(diffexp.variance.array, dtype='float'))
+        if plot_diffexp:
+            obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+            cutout=50
+            x_half_width = cutout
+            y_half_width = cutout
+            bbox = lsst.geom.Box2I()
+            bbox.include(lsst.geom.Point2I(x_pix - x_half_width, y_pix - y_half_width))
+            bbox.include(lsst.geom.Point2I(x_pix + x_half_width, y_pix + y_half_width))
+            afwDisplay.setDefaultMaskTransparency(100)
+            afwDisplay.setDefaultBackend('matplotlib')
+
+            diffexp_cutout = diffexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+                            
+            fig = plt.figure(figsize=(10, 5))
+            stamp_display = []
+
+            fig.add_subplot(1,2,1)
+            stamp_display.append(afwDisplay.Display(frame=fig))
+            stamp_display[0].scale('asinh', 'zscale')
+            stamp_display[0].mtv(diffexp_cutout)
+            stamp_display[0].dot('o', x_pix, y_pix, ctype='magenta', size=radii)
+            plt.title('Difference Image of source in ra {} dec {}'.format(ra,dec))
+            plt.tight_layout()
+        flux.append(f)
+        fluxerr.append(ferr)
+        flag.append(flg)
+        exp_visit_info = diffexp.getInfo().getVisitInfo()
+        
+        visit_date_python = exp_visit_info.getDate().toPython()
+        visit_date_astropy = Time(visit_date_python)
+        print(visit_date_astropy)            
+        dates.append(visit_date_astropy.mjd)
+    mean = np.mean(flux)
+    source_of_interest = pd.DataFrame()
+    source_of_interest['dates'] = dates - min(dates)
+    source_of_interest['flux'] = flux - mean
+    source_of_interest['flux_err'] = fluxerr
+    source_of_interest = source_of_interest.sort_values(by='dates')
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='Cáceres-Burgos', color='#0827F5', ls ='dotted')
+    plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
+    plt.xlabel('MJD', fontsize=15)
+    return
+
+
+
+
+
+
