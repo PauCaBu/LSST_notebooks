@@ -21,7 +21,7 @@ import sys
 from astroquery.vizier import Vizier
 from photutils.centroids import centroid_sources
 from photutils.centroids import centroid_com
-
+from sklearn import *
 
 detector_nomenclature= {'S29':1, 'S30':2, 'S31':3, 'S28':7, 'S27':6, 'S26':5, 'S25':4, 'S24':12, 'S23':11, 'S22':10, 'S21':9, 'S20':8, 'S19':18, 'S18':17, 'S17':16, 'S16':15, 'S15':14, 'S14':13, 'S13':24, 'S12':23, 'S11':22, 'S10':21, 'S9':20,'S8':19, 'S7':31, 'S6':30, 'S5':29, 'S4':28, 'S3':27, 'S2':26, 'S1':25, 'N29':60, 'N30':61, 'N31':62, 'N28':59, 'N27':58, 'N26':57, 'N25':56, 'N24':55, 'N23':54, 'N22':53, 'N21':52, 'N20':51, 'N19':50, 'N18':49, 'N17':48, 'N16':47, 'N15':46, 'N14':45, 'N13':44, 'N12':43, 'N11':42, 'N10':41, 'N9':40,'N8':39, 'N7':38, 'N6':37, 'N5':36, 'N4':35, 'N3':34, 'N2':33, 'N1':32 }
 ccd_name = dict(zip(detector_nomenclature.values(), detector_nomenclature.keys()))
@@ -319,7 +319,7 @@ def Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, de
     return
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, factor=None, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, factor=None, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -589,60 +589,75 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     if do_lc_stars==False:      
         plt.figure(figsize=(10,6))
         
-    norm = np.mean(fluxes)
-    std = np.std(fluxes)
+    
     
 
     #plt.errorbar(dates - min(dates), fluxes/std - norm/std, yerr=new_err/std, capsize=4, fmt='s', ecolor='blue', color='orange', label ='LSST Science Pipelines -RMS error-')
-    source_of_interest = pd.DataFrame()
-    source_of_interest['dates'] = dates - min(dates)
-    source_of_interest['flux'] = fluxes - norm
-    source_of_interest['flux_err'] = fluxes_err
-    source_of_interest = source_of_interest.sort_values(by='dates')
-    plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos', color='#0827F5', ls ='dotted')
-    plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
-    plt.xlabel('MJD', fontsize=15)
+    
    
-        
+    plt.figure(figsize=(10,6))   
+
+    #plt.set_cmap("cool")
+    if do_zogy:
+        zogy = zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r, instrument = 'DECam', plot_diffexp=plot_zogy_stamps, plot_coadd = plot_coadd, cutout=cutout)
+        print(zogy)
+
+        z_flux = zogy.flux - np.mean(zogy.flux)
+        z_flux_norm = np.linalg.norm(np.array(z_flux))
+        z_flux/=z_flux_norm
+        z_ferr = zogy.flux_err
+        z_ferr/=z_flux_norm
+        plt.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
+
     if SIBLING!=None and type(SIBLING)==str:
         Jorge_LC = pd.read_csv(SIBLING, header=5)
         Jorge_LC = Jorge_LC[Jorge_LC['mjd']<57072] 
         
         if factor==0.5:
-            norm = np.mean(Jorge_LC.aperture_flx_0)
-            std = 1#np.std(Jorge_LC.aperture_flx_0)
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0 - norm, yerr=Jorge_LC.aperture_flx_err_0,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd- min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0/std -norm/std, yerr=Jorge_LC.aperture_flx_err_0/std,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            mean = np.mean(Jorge_LC.aperture_flx_0)
+            norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_0))
+            #std = np.norm(Jorge_LC.aperture_flx_0)
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0 - mean, yerr=Jorge_LC.aperture_flx_err_0,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            plt.errorbar(Jorge_LC.mjd- min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0/norm -mean/norm, yerr=Jorge_LC.aperture_flx_err_0/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==0.75:
-            norm = np.mean(Jorge_LC.aperture_flx_1)
-            std = 1#np.std(Jorge_LC.aperture_flx_1)
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_1 - norm, yerr=Jorge_LC.aperture_flx_err_1,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_1/std - norm/std, yerr=Jorge_LC.aperture_flx_err_1/std,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            mean = np.mean(Jorge_LC.aperture_flx_1)
+            norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_1))
+            #std = np.std(Jorge_LC.aperture_flx_1)
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_1 - mean, yerr=Jorge_LC.aperture_flx_err_1,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_1/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_1/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
             
         if factor==1:
-            norm = np.mean(Jorge_LC.aperture_flx_2)
-            std = 1#np.std(Jorge_LC.aperture_flx_2)
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2/std - norm/std, yerr=Jorge_LC.aperture_flx_err_2/std,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            mean = np.mean(Jorge_LC.aperture_flx_2)
+            norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_2))
+            #std = np.std(Jorge_LC.aperture_flx_2)
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_2/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
             
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - norm, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - mean, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==1.25:
-            std = 1#np.std(Jorge_LC.aperture_flx_3)
-            norm = np.mean(Jorge_LC.aperture_flx_3)
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3/std - norm/std, yerr=Jorge_LC.aperture_flx_err_3/std,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            #std = np.std(Jorge_LC.aperture_flx_3)
+            mean = np.mean(Jorge_LC.aperture_flx_3)
+            norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_3))
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_3/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
             
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3 - norm, yerr=Jorge_LC.aperture_flx_err_3,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3 - mean, yerr=Jorge_LC.aperture_flx_err_3,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==1.5:
-            std = 1#np.std(Jorge_LC.aperture_flx_4)
-            
-            norm = np.mean(Jorge_LC.aperture_flx_4)
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4 - norm, yerr=Jorge_LC.aperture_flx_err_4,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4/std - norm/std, yerr=Jorge_LC.aperture_flx_err_4/std,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-    #plt.set_cmap("cool")
-    if do_zogy:
-        zogy = zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r, instrument = 'DECam', plot_diffexp=False, plot_coadd = False, cutout=50)
-        print(zogy)
-        plt.errorbar(zogy.dates, zogy.flux, yerr=zogy.flux_err, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
-
+            #std = np.std(Jorge_LC.aperture_flx_4)
+            norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_4))
+            mean = np.mean(Jorge_LC.aperture_flx_4)
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4 - mean, yerr=Jorge_LC.aperture_flx_err_4,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_4/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+    
+    mean = np.mean(fluxes)
+    norm = np.linalg.norm(fluxes)
+    source_of_interest = pd.DataFrame()
+    source_of_interest['dates'] = dates - min(dates)
+    source_of_interest['flux'] = fluxes/norm - mean/norm
+    source_of_interest['flux_err'] = fluxes_err/norm
+    source_of_interest = source_of_interest.sort_values(by='dates')
+    
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos', color='#0827F5', ls ='dotted')
+    plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
+    plt.xlabel('MJD', fontsize=15)
 
     plt.title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
     plt.legend(ncol=5)
@@ -944,7 +959,7 @@ def zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits,
     mean = np.mean(flux)
     source_of_interest = pd.DataFrame()
     source_of_interest['dates'] = dates - min(dates)
-    source_of_interest['flux'] = flux - mean
+    source_of_interest['flux'] = flux
     source_of_interest['flux_err'] = fluxerr
     source_of_interest = source_of_interest.sort_values(by='dates')
     #plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='Cáceres-Burgos', color='#0827F5', ls ='dotted')
