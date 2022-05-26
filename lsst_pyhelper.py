@@ -319,7 +319,7 @@ def Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, de
     return
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, factor=None, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, factor=None, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam'):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -374,8 +374,46 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     if type(r) != str:
         r/=pixel_to_arcsec
-    
+
+
+
     butler = Butler(repo)
+    if collection_coadd != None:
+        print('Looking at coadd')
+        dataIds = Find_coadd(repo, collection_coadd, ra, dec, instrument=instrument, plot=plot_coadd, cutout=cutout)
+        coadd = butler.get('goodSeeingCoadd', collections=collection_coadd, instrument=instrument, dataId = dataIds[0])
+        obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+        coadd_cutout = coadd.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+
+        
+        wcs = coadd_cutout.getWcs()
+        px_0, py_0 = wcs.getPixelOrigin()
+        
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        print(np.asarray(coadd_cutout.variance.array, dtype='float'))
+        #print(wcs.copyAtShiftedPixelOrigin())
+        data = np.asarray(coadd_cutout.image.array, dtype='float')
+        #plt.imshow(data, cmap='gray')
+        #plt.show()
+        #fig = plt.figure(figsize=(10, 5))
+        #stamp_display = []
+
+        #fig.add_subplot(1,2,1)
+        #stamp_display.append(afwDisplay.Display(frame=fig))
+        #stamp_display[0].scale('linear', -1, 10)
+        #stamp_display[0].mtv(coadd_cutout)
+        #stamp_display[0].dot('o', x_pix, y_pix, ctype='#0827F5', size=5)
+        #plt.title('Coadd of source in ra {} dec {}'. format(ra,dec), fontsize=17)
+        #plt.tight_layout()
+        print('px {} , py {}'.format(x_pix, y_pix))
+        print('px_0 {}, py_0 {}'.format(px_0, py_0))
+        #print(np.shape(data))
+        #print(np.s)
+        flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data, [cutout] , [cutout] , r, var = np.asarray(coadd_cutout.variance.array, dtype='float'))
+        
+        print(flux_coadd[0])
+        plt.show()
+
     for i in range(len(visits)):
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
@@ -466,6 +504,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             ra_cor, dec_cor =  wcs.pixelToSkyArray([x_pix], [y_pix], degrees=True)
             ra = ra_cor[0]
             dec = dec_cor[0]
+
+      
             
         sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
         psf = diffexp.getPsf()
@@ -486,7 +526,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         if show_stamps:
             Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits[i]], ccd_num, s=r, cutout=cutout)
         #fluxes_under_aperture = values_under_aperture(data, x_pix, y_pix, r)
-        #print(fluxes_under_aperture)
+        #print(fluxes_under_aperture) 
         #error = np.sqrt(np.mean(fluxes_under_aperture**2)* len(fluxes_under_aperture)) 
         
         fluxes.append(flux[0])
@@ -615,44 +655,68 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         if factor==0.5:
             mean = np.mean(Jorge_LC.aperture_flx_0)
+            fluxes = Jorge_LC.aperture_flx_0 - mean
+            #norm = np.linalg.norm(fluxes)
             norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_0))
+            fluxes /= norm
+            
+            #
             #std = np.norm(Jorge_LC.aperture_flx_0)
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0 - mean, yerr=Jorge_LC.aperture_flx_err_0,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd- min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0/norm -mean/norm, yerr=Jorge_LC.aperture_flx_err_0/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            plt.errorbar(Jorge_LC.mjd- min(Jorge_LC.mjd), fluxes, yerr=Jorge_LC.aperture_flx_err_0/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==0.75:
+
             mean = np.mean(Jorge_LC.aperture_flx_1)
+            fluxes = Jorge_LC.aperture_flx_1 - mean
+            #norm = np.linalg.norm(fluxes)
             norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_1))
+            fluxes /= norm
+            #
             #std = np.std(Jorge_LC.aperture_flx_1)
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_1 - mean, yerr=Jorge_LC.aperture_flx_err_1,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_1/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_1/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), fluxes, yerr=Jorge_LC.aperture_flx_err_1/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
             
         if factor==1:
             mean = np.mean(Jorge_LC.aperture_flx_2)
+            fluxes = Jorge_LC.aperture_flx_2 - mean
             norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_2))
+            #norm = np.linalg.norm(fluxes)
+            fluxes /= norm
+            #
             #std = np.std(Jorge_LC.aperture_flx_2)
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_2/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), fluxes, yerr=Jorge_LC.aperture_flx_err_2/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
             
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - mean, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==1.25:
             #std = np.std(Jorge_LC.aperture_flx_3)
             mean = np.mean(Jorge_LC.aperture_flx_3)
             norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_3))
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_3/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            fluxes = Jorge_LC.aperture_flx_3 - mean
+            norm = np.linalg.norm(fluxes)
+            fluxes /= norm
+            #
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), fluxes, yerr=Jorge_LC.aperture_flx_err_3/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
             
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3 - mean, yerr=Jorge_LC.aperture_flx_err_3,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==1.5:
             #std = np.std(Jorge_LC.aperture_flx_4)
             norm = np.linalg.norm(np.array(Jorge_LC.aperture_flx_4))
             mean = np.mean(Jorge_LC.aperture_flx_4)
+            fluxes = Jorge_LC.aperture_flx_4 - mean
+            #norm = np.linalg.norm(fluxes)
+            fluxes /= norm
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4 - mean, yerr=Jorge_LC.aperture_flx_err_4,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4/norm - mean/norm, yerr=Jorge_LC.aperture_flx_err_4/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), fluxes, yerr=Jorge_LC.aperture_flx_err_4/norm,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
     
-    mean = np.mean(fluxes)
-    norm = np.linalg.norm(fluxes)
+    sub_fluxes = fluxes - np.mean(fluxes)
+    norm_sub_fluxes = sub_fluxes/np.linalg.norm(np.array(fluxes))
+    print('norm: ',np.linalg.norm(fluxes) )
+    #mean = np.mean(fluxes)
+    #norm = np.linalg.norm(fluxes)
     source_of_interest = pd.DataFrame()
     source_of_interest['dates'] = dates - min(dates)
-    source_of_interest['flux'] = fluxes/norm - mean/norm
-    source_of_interest['flux_err'] = fluxes_err/norm
+    source_of_interest['flux'] = norm_sub_fluxes #fluxes/norm - mean/norm
+    source_of_interest['flux_err'] = fluxes_err/np.linalg.norm(np.array(fluxes)) #norm
     source_of_interest = source_of_interest.sort_values(by='dates')
     
     plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos', color='#0827F5', ls ='dotted')
@@ -866,10 +930,13 @@ def Find_coadd(repo, collection_coadd, ra, dec, instrument='DECam', plot=False, 
                 stamp_display.append(afwDisplay.Display(frame=fig))
                 stamp_display[0].scale('linear', -1, 10)
                 stamp_display[0].mtv(coadd_cutout)
+                stamp_display[0].dot('o', x_pix, y_pix, ctype='#0827F5', size=5)
                 plt.title('Coadd of source in ra {} dec {}'. format(ra,dec), fontsize=17)
                 plt.tight_layout()
-            dataId.append(ref.dataId.full)
             
+            dataId.append(ref.dataId.full)
+            break
+
         except:
             pass
     return dataId
