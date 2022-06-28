@@ -24,6 +24,7 @@ from photutils.centroids import centroid_sources
 from photutils.centroids import centroid_com
 from sklearn import *
 
+bblue='#0827F5'
 detector_nomenclature= {'S29':1, 'S30':2, 'S31':3, 'S28':7, 'S27':6, 'S26':5, 'S25':4, 'S24':12, 'S23':11, 'S22':10, 'S21':9, 'S20':8, 'S19':18, 'S18':17, 'S17':16, 'S16':15, 'S15':14, 'S14':13, 'S13':24, 'S12':23, 'S11':22, 'S10':21, 'S9':20,'S8':19, 'S7':31, 'S6':30, 'S5':29, 'S4':28, 'S3':27, 'S2':26, 'S1':25, 'N29':60, 'N30':61, 'N31':62, 'N28':59, 'N27':58, 'N26':57, 'N25':56, 'N24':55, 'N23':54, 'N22':53, 'N21':52, 'N20':51, 'N19':50, 'N18':49, 'N17':48, 'N16':47, 'N15':46, 'N14':45, 'N13':44, 'N12':43, 'N11':42, 'N10':41, 'N9':40,'N8':39, 'N7':38, 'N6':37, 'N5':36, 'N4':35, 'N3':34, 'N2':33, 'N1':32 }
 ccd_name = dict(zip(detector_nomenclature.values(), detector_nomenclature.keys()))
 sibling_allcand = pd.read_csv('/home/jahumada/testdata_hits/SIBLING_allcand.csv', index_col=0)
@@ -336,6 +337,91 @@ def Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, de
     return
 
 
+
+def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, visits, ccd_num, cutout=40, s=20, save_stamps=False, save_as=''):
+    """
+    Plots all the calibrated and difference-imaged exposure cropped to the location of ra,dec in a single plot.
+    -----
+    Input
+    -----
+    repo : [string] directory of the butler repository 
+    collection_diff : [string] name of the difference imaging collection
+    collection_calexp : [string] name of the calibrated exposures collection
+    ra : [float] right ascention coordinate in decimal degrees
+    dec : [float] declination coordinate in decimal degrees
+    visits : [ndarray] list of visits
+    ccd_num : [int]
+    cutout : [int]
+    s : [int] circular display 
+    -----
+    Output
+    -----
+    None
+    
+    """
+    if visits==[]:
+        print("No visits submitted")
+        return
+
+    columns = len(visits) 
+    fig = plt.figure(figsize=(columns*3, 2*3))
+    butler = Butler(repo)
+    i=0
+    for i in range(len(visits)):
+        obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+        calexp = butler.get('calexp', visit= visits[i], detector= ccd_num, instrument='DECam', collections=collection_calexp)
+        calexp_im = calexp.getMaskedImage()
+        calexp_cat = butler.get('src', visit= visits[i], detector= ccd_num, instrument='DECam', collections=collection_calexp)
+        
+        diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+        diffexp_cat = butler.get('goodSeeingDiff_diaSrc',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+                 
+        afwDisplay.setDefaultMaskTransparency(100)
+        afwDisplay.setDefaultBackend('matplotlib')
+        wcs = diffexp.getWcs()
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        x_half_width = cutout
+        y_half_width = cutout
+        bbox = lsst.geom.Box2I()
+        bbox.include(lsst.geom.Point2I(x_pix - x_half_width, y_pix - y_half_width))
+        bbox.include(lsst.geom.Point2I(x_pix + x_half_width, y_pix + y_half_width))
+
+        calexp_cutout = calexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+        diffexp_cutout = diffexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+
+        stamp_display = []
+        i+=1
+        fig.add_subplot(2,columns,i)
+        stamp_display.append(afwDisplay.Display(frame=fig))
+        stamp_display[0].scale('asinh', -20, 50)
+        stamp_display[0].mtv(calexp_cutout.maskedImage)
+        
+        stamp_display[0].dot('o', x_pix, y_pix, ctype='cyan', size=s)
+        plt.axis('off')
+        with stamp_display[0].Buffering():
+            for j in calexp_cat[calexp_cat['calib_psf_used']]:
+                 stamp_display[0].dot("x", j.getX(), j.getY(), size=10, ctype="red")
+
+        fig.add_subplot(2, columns,i+columns)
+        stamp_display.append(afwDisplay.Display(frame=fig))
+        stamp_display[1].scale('asinh', -10,10)
+        stamp_display[1].mtv(diffexp_cutout.maskedImage)
+        stamp_display[1].dot('o', x_pix, y_pix, ctype='cyan', size=s)
+        plt.axis('off')
+        #for src in diffexp_cat:
+        #    stamp_display[1].dot('o', src.getX(), src.getY(), ctype='cyan', size=4)
+        #plt.title('Diffexp Image and Source Catalog')
+
+        #plt.tight_layout()
+        #plt.show()
+    if save_stamps and save_as!='':
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}.pdf'.format(save_as))
+
+        
+    return
+
+
+
 def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, factor=None, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam'):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
@@ -392,6 +478,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     if type(r) != str:
         r/=pixel_to_arcsec
 
+    #flux_reference = 0
+    #fluxerr_reference = 0
+    magzero_reference = 0 
 
 
     butler = Butler(repo)
@@ -431,7 +520,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
     #    print(flux_coadd[0])
     #    plt.show()
-
+    
     for i in range(len(visits)):
         
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
@@ -445,6 +534,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data_cal = np.asarray(calexp.image.array, dtype='float' )
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        
+        if i==0:
+            magzero_reference = diffexp.getMetadata()['MAGZERO']
 
         if correct_coord and i==0:
             
@@ -553,17 +645,25 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         print('Aperture radii: {} px'.format(r))
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r, var = np.asarray(diffexp.variance.array, dtype='float'))
-       
         
         print('Coords: ra = {}, dec = {}'.format(ra,dec))
         print('visit : {}'.format(visits[i]))
+        
         if show_stamps:
-            Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits[i]], ccd_num, s=r)
+            Calib_and_Diff_plot(repo, collection_diff, collection_calexp, ra, dec, [visits[i]], ccd_num, s=r)
         #fluxes_under_aperture = values_under_aperture(data, x_pix, y_pix, r)   cutout=cutout
         #print(fluxes_under_aperture) 
         #error = np.sqrt(np.mean(fluxes_under_aperture**2)* len(fluxes_under_aperture)) 
+
+        #if i ==0:
+        #    flux_reference = flux[0]
+        #    fluxerr_reference = fluxerr[0]
         
         Fluxes.append(flux[0])
+        Fluxes_err.append(fluxerr[0])
+        magzero_image = diffexp.getMetadata()['MAGZERO']
+        f_scaling = 10**((magzero_reference - magzero_image)/-2.5)
+        Fluxes.append(flux[0]*f_scaling)
         Fluxes_err.append(fluxerr[0])
         
         print('flux: ', flux[0])
@@ -643,6 +743,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             
             norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
             c_m = matplotlib.cm.plasma
+
             # create a ScalarMappable and initialize a data structure
             s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
             s_m.set_array([])
@@ -760,8 +861,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     source_of_interest = pd.DataFrame()
     source_of_interest['dates'] = dates - min(dates)
-    source_of_interest['flux'] = np.array(Fluxes) #* median_jorge #+ flux_coadd #ub_fluxes #fluxes/norm - mean/norm
-    source_of_interest['flux_err'] = np.array(Fluxes_err) #* median_jorge # **2 + fluxerr_coadd**2)**(1/2)#/np.linalg.norm(np.array(fluxes)) #norm
+    source_of_interest['flux'] = np.array(Fluxes) 
+    source_of_interest['flux_err'] = np.array(Fluxes_err)
+    source_of_interest['visit'] = visits
     source_of_interest = source_of_interest.sort_values(by='dates')
     
     plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos', color='#0827F5', ls ='dotted')
@@ -782,6 +884,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     plt.show()
     
+    #Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, list(source_of_interest.visit), ccd_num, cutout=cutout, s=r, save_stamps=True, save_as=save_as+ '_stamps')
+
     
     if hist:
         for key in stats:
