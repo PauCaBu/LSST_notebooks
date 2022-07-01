@@ -461,6 +461,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     Fluxes = []
     Fluxes_err = []
+
+
+    Fluxes_scaled = []
+    Fluxes_err_scaled = []
     #new_err = []
     
     #fluxes_cal = []
@@ -525,6 +529,23 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         calexp = butler.get('calexp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
+  
+        exp_visit_info = diffexp.getInfo().getVisitInfo()
+        
+        visit_date_python = exp_visit_info.getDate().toPython()
+        visit_date_astropy = Time(visit_date_python)        
+        dates.append(visit_date_astropy.mjd)
+
+    dates = dates - min(dates)
+    zipped = zip(dates, visits)
+    res = sorted(zipped, key = lambda x: x[0])
+
+    dates_aux, visits_aux = zip(*list(res))
+
+    for i in range(len(visits_aux)):
+        
+        diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+        calexp = butler.get('calexp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
         wcs = diffexp.getWcs()
         
         px = 2048
@@ -623,7 +644,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         visit_date_python = exp_visit_info.getDate().toPython()
         visit_date_astropy = Time(visit_date_python)
         print(visit_date_astropy)            
-        dates.append(visit_date_astropy.mjd)
+        #dates.append(visit_date_astropy.mjd)
         b = np.nan_to_num(np.array(data))
         wcs = diffexp.getWcs()
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
@@ -659,14 +680,20 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #    flux_reference = flux[0]
         #    fluxerr_reference = fluxerr[0]
         
-        Fluxes.append(flux[0])
-        Fluxes_err.append(fluxerr[0])
+        #Fluxes.append(flux[0])
+        #Fluxes_err.append(fluxerr[0])
         magzero_image = diffexp.getMetadata()['MAGZERO']
         f_scaling = 10**((magzero_reference - magzero_image)/-2.5)
-        Fluxes.append(flux[0]*f_scaling)
+        print('flux before scaling: ', flux[0])
+        print('f scaling : ', f_scaling)
+        print('flux after scaling: ', flux[0]*f_scaling)
+        Fluxes.append(flux[0])
         Fluxes_err.append(fluxerr[0])
+
+        Fluxes_scaled.append(flux[0]*f_scaling)
+        Fluxes_err_scaled.append(fluxerr[0]*f_scaling)
         
-        print('flux: ', flux[0])
+        #print('flux: ', flux[0])
         print('fluxerr: ', fluxerr[0])
         flags.append(flags)
         print('------------------------------------------')
@@ -860,13 +887,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #norm = np.linalg.norm(fluxes)
 
     source_of_interest = pd.DataFrame()
-    source_of_interest['dates'] = dates - min(dates)
+    source_of_interest['dates'] = dates_aux #- min(dates)
     source_of_interest['flux'] = np.array(Fluxes) 
     source_of_interest['flux_err'] = np.array(Fluxes_err)
+    source_of_interest['flux_scaled'] = np.array(Fluxes_scaled) 
+    source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled)
     source_of_interest['visit'] = visits
     source_of_interest = source_of_interest.sort_values(by='dates')
     
     plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos', color='#0827F5', ls ='dotted')
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
     plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
     plt.xlabel('MJD', fontsize=15)
 
@@ -884,7 +914,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     plt.show()
     
-    #Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, list(source_of_interest.visit), ccd_num, cutout=cutout, s=r, save_stamps=True, save_as=save_as+ '_stamps')
+
+    # This line below plots the stamps of the source as a single figure for all epochs available!
+    Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, list(source_of_interest.visit), ccd_num, cutout=cutout, s=r, save_stamps=True, save_as=save_as+ '_stamps')
 
     
     if hist:
