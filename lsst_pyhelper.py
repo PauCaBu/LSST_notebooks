@@ -340,7 +340,7 @@ def Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, de
 
 def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, visits, ccd_num, cutout=40, s=20, save_stamps=False, save_as=''):
     """
-    Plots all the calibrated and difference-imaged exposure cropped to the location of ra,dec in a single plot.
+    Plots all the calibrated and difference-imaged exposure cropped to the location of ra,dec in a single plot (figure).
     -----
     Input
     -----
@@ -366,7 +366,7 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
     columns = len(visits) 
     fig = plt.figure(figsize=(columns*3, 2*3))
     butler = Butler(repo)
-    i=0
+    #i=0
     for i in range(len(visits)):
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         calexp = butler.get('calexp', visit= visits[i], detector= ccd_num, instrument='DECam', collections=collection_calexp)
@@ -375,7 +375,11 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
         
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         diffexp_cat = butler.get('goodSeeingDiff_diaSrc',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
-                 
+ 
+        exp_visit_info = calexp.getInfo().getVisitInfo()
+        visit_date_python = exp_visit_info.getDate().toPython()
+        visit_date_astropy = Time(visit_date_python)
+
         afwDisplay.setDefaultMaskTransparency(100)
         afwDisplay.setDefaultBackend('matplotlib')
         wcs = diffexp.getWcs()
@@ -398,9 +402,14 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
         
         stamp_display[0].dot('o', x_pix, y_pix, ctype='cyan', size=s)
         plt.axis('off')
+        plt.title(visit_date_astropy.mjd)
+
         with stamp_display[0].Buffering():
             for j in calexp_cat[calexp_cat['calib_psf_used']]:
                  stamp_display[0].dot("x", j.getX(), j.getY(), size=10, ctype="red")
+        
+
+
 
         fig.add_subplot(2, columns,i+columns)
         stamp_display.append(afwDisplay.Display(frame=fig))
@@ -408,6 +417,7 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
         stamp_display[1].mtv(diffexp_cutout.maskedImage)
         stamp_display[1].dot('o', x_pix, y_pix, ctype='cyan', size=s)
         plt.axis('off')
+        plt.title(diffexp.getInfo().getVisitInfo().id)
         #for src in diffexp_cat:
         #    stamp_display[1].dot('o', src.getX(), src.getY(), ctype='cyan', size=4)
         #plt.title('Diffexp Image and Source Catalog')
@@ -892,7 +902,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest['flux_err'] = np.array(Fluxes_err)
     source_of_interest['flux_scaled'] = np.array(Fluxes_scaled) 
     source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled)
-    source_of_interest['visit'] = visits
+    source_of_interest['visit'] = visits_aux
     source_of_interest = source_of_interest.sort_values(by='dates')
     
     plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos', color='#0827F5', ls ='dotted')
