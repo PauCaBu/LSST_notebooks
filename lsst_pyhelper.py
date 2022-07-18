@@ -505,9 +505,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #flux_reference = 0
     #fluxerr_reference = 0
     #magzero_reference = 0 
-
-
+    zero_set = 0
+    coadd_photocalib = 0
     butler = Butler(repo)
+
     if collection_coadd != None:
         print('Looking at coadd')
         dataIds = Find_coadd(repo, collection_coadd, ra, dec, instrument=instrument, plot=plot_coadd, cutout=cutout)
@@ -515,40 +516,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         coadd = butler.get('goodSeeingCoadd', collections=collection_coadd, instrument=instrument, dataId = dataIds[0])
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         coadd_cutout = coadd.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
-        p = coadd.getPhotoCalib()
-        zero_set = p.getInstFluxAtZeroMagnitude()# - 
+        coadd_photocalib = coadd.getPhotoCalib()
+        zero_set -= coadd_photocalib.getInstFluxAtZeroMagnitude()
 
-        
-    #    wcs = coadd_cutout.getWcs()
-    #    px_0, py_0 = wcs.getPixelOrigin()
-        
-    #    x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
-        #print(np.asarray(coadd_cutout.variance.array, dtype='float'))
-        #print(wcs.copyAtShiftedPixelOrigin())
-        #data = np.asarray(coadd_cutout.image.array, dtype='float')
-        #plt.imshow(data, cmap='gray')
-        #plt.show()
-        #fig = plt.figure(figsize=(10, 5))
-        #stamp_display = []
-
-        #fig.add_subplot(1,2,1)
-        #stamp_display.append(afwDisplay.Display(frame=fig))
-        #stamp_display[0].scale('linear', -1, 10)
-        #stamp_display[0].mtv(coadd_cutout)
-        #stamp_display[0].dot('o', x_pix, y_pix, ctype='#0827F5', size=5)
-        #plt.title('Coadd of source in ra {} dec {}'. format(ra,dec), fontsize=17)
-        #plt.tight_layout()
-    #    print('px {} , py {}'.format(x_pix, y_pix))
-    #    print('px_0 {}, py_0 {}'.format(px_0, py_0))
-        #print(np.shape(data))
-        #print(np.s)
-        #flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data, [cutout] , [cutout] , r, var = np.asarray(coadd_cutout.variance.array, dtype='float'))
-        
-    #    print(flux_coadd[0])
-    #    plt.show()
     
     for i in range(len(visits)):
-        
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         calexp = butler.get('calexp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
   
@@ -566,7 +538,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #magzero_outputs = Blind15A_26_magzero_outputs[Blind15A_26_magzero_outputs['ccd']==ccd_num]
     #print(magzero_outputs)
     for i in range(len(visits_aux)):
-        
+        zero_set_aux = zero_set
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         calexp = butler.get('calexp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
         wcs = diffexp.getWcs()
@@ -709,7 +681,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         photocalib = diffexp.getPhotoCalib()
         photocalib_cal = calexp.getPhotoCalib()
-        
+        zero_set_aux *= photocalib_cal.instFluxToNanojansky(flux[0], obj_pos_2d)/coadd_photocalib.instFluxToNanojansky(flux[0], obj_pos_2d)
+
+        zero_set_aux += photocalib_cal.getInstFluxAtZeroMagnitude()
         if i ==0:
             flux_reference = flux[0]
             fluxerr_reference = fluxerr[0]
@@ -735,8 +709,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('flux before scaling: ', flux[0])
         print('f scaling : ', f_scaling)
         print('flux after scaling: ', flux[0]*f_scaling)
-        Fluxes.append(flux_nJy)
-        Fluxes_err.append(fluxerr_nJy)
+        Fluxes.append(flux[0]+zero_set_aux)
+        Fluxes_err.append(fluxerr[0])
 
         Fluxes_scaled.append(flux[0]*f_scaling)
         Fluxes_err_scaled.append(fluxerr[0]*f_scaling)
@@ -962,10 +936,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     if sfx=='mag':
         plt.errorbar(source_of_interest.dates, source_of_interest.Mg, yerr=source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
-        plt.ylabel('Excess magnitude', fontsize=15 )
+        plt.ylabel('Excess magnitude', fontsize=15)
     
     else: 
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos in nJky', color='#0827F5', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux/1e10, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [wForm]', color='#0827F5', ls ='dotted')
         plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_cal - np.median(source_of_interest.flux_cal), yerr=source_of_interest.flux_err_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos [mock aperture photometry scaled]', color='red', ls ='dotted')
         plt.ylabel('Excess flux in arbitrary units', fontsize=15 )
@@ -1293,6 +1267,28 @@ def zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits,
     #plt.xlabel('MJD', fontsize=15)
     return source_of_interest
 
+def checksMagAtOneInstFlux(repo, dataType, visit, collection, detector, instrument='DECam'):
+    """
+    Returns the AB magnitude that equates one count for the Instrumental Flux (ADU)
+
+    Input:
+    -----
+    repo : [str]
+    dataType : [str]
+    visit : [int]
+    collection : [str]
+    detector : [int]
+    instrument: [str]
+
+    Ouput:
+    -----
+    mag : [float]
+    """
+    butler = Butler(repo)
+    data = butler.get(dataType,visit=visit, detector=detector, collections=collection, instrument=instrument)
+    p = data.getPhotoCalib()
+    mag = p.instFluxToMagnitude(1)
+    return mag
 
 
 
