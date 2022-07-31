@@ -1,3 +1,4 @@
+from platform import mac_ver
 from statistics import median
 from lsst.pipe.tasks.imageDifference import ImageDifferenceTask
 from lsst.ip.diffim import ZogyImagePsfMatchTask as zt
@@ -23,6 +24,7 @@ from astroquery.vizier import Vizier
 from photutils.centroids import centroid_sources
 from photutils.centroids import centroid_com
 from sklearn import *
+import photometric_calib as pc
 
 bblue='#0827F5'
 detector_nomenclature= {'S29':1, 'S30':2, 'S31':3, 'S28':7, 'S27':6, 'S26':5, 'S25':4, 'S24':12, 'S23':11, 'S22':10, 'S21':9, 'S20':8, 'S19':18, 'S18':17, 'S17':16, 'S16':15, 'S15':14, 'S14':13, 'S13':24, 'S12':23, 'S11':22, 'S10':21, 'S9':20,'S8':19, 'S7':31, 'S6':30, 'S5':29, 'S4':28, 'S3':27, 'S2':26, 'S1':25, 'N29':60, 'N30':61, 'N31':62, 'N28':59, 'N27':58, 'N26':57, 'N25':56, 'N24':55, 'N23':54, 'N22':53, 'N21':52, 'N20':51, 'N19':50, 'N18':49, 'N17':48, 'N16':47, 'N15':46, 'N14':45, 'N13':44, 'N12':43, 'N11':42, 'N10':41, 'N9':40,'N8':39, 'N7':38, 'N6':37, 'N5':36, 'N4':35, 'N3':34, 'N2':33, 'N1':32 }
@@ -350,7 +352,7 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
     collection_calexp : [string] name of the calibrated exposures collection
     ra : [float] right ascention coordinate in decimal degrees
     dec : [float] declination coordinate in decimal degrees
-    visits : [ndarray] list of visits
+    visits : [ndarray] list of visits.
     ccd_num : [int]
     cutout : [int]
     s : [int] circular display 
@@ -469,7 +471,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     None
     
     """
-    
+    Fluxes_unscaled = []
+    Fluxes_err_unscaled = []
     
     Fluxes = []
     Fluxes_err = []
@@ -504,26 +507,27 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     #flux_reference = 0
     #fluxerr_reference = 0
-    #magzero_reference = 0 
+    magzero_firstImage = 0
     zero_set = 0
     coadd_photocalib = 0
     butler = Butler(repo)
 
-    if collection_coadd != None:
-        print('Looking at coadd')
-        dataIds = Find_coadd(repo, collection_coadd, ra, dec, instrument=instrument, plot=plot_coadd, cutout=cutout)
-        #print(dataIds)
-        coadd = butler.get('goodSeeingCoadd', collections=collection_coadd, instrument=instrument, dataId = dataIds[0])
-        obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
-        coadd_cutout = coadd.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
-        coadd_photocalib = coadd.getPhotoCalib()
-        zero_set -= coadd_photocalib.getInstFluxAtZeroMagnitude()
+    #if collection_coadd != None:
+    #    print('Looking at coadd')
+    #    dataIds = Find_coadd(repo, collection_coadd, ra, dec, instrument=instrument, plot=plot_coadd, cutout=cutout)
+    #    #print(dataIds)
+    #    coadd = butler.get('goodSeeingCoadd', collections=collection_coadd, instrument=instrument, dataId = dataIds[0])
+    #    obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+    #    coadd_cutout = coadd.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+    #    coadd_photocalib = coadd.getPhotoCalib()
+    #    zero_set -= coadd_photocalib.getInstFluxAtZeroMagnitude()
 
     
     for i in range(len(visits)):
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         calexp = butler.get('calexp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
-  
+        
+
         exp_visit_info = diffexp.getInfo().getVisitInfo()
         
         visit_date_python = exp_visit_info.getDate().toPython()
@@ -541,6 +545,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         zero_set_aux = zero_set
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         calexp = butler.get('calexp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
+        coadd = butler.get('goodSeeingDiff_matchedExp', visit=visits_aux[i], detector=ccd_num, collections=collection_diff, instrument='DECam')
+
+        wcs_coadd = coadd.getWcs()
         wcs = diffexp.getWcs()
         
         px = 2048
@@ -548,26 +555,20 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         data = np.asarray(diffexp.image.array, dtype='float')
         data_cal = np.asarray(calexp.image.array, dtype='float')
+        data_coadd = np.asarray(coadd.image.array, dtype='float')
+
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
-        
+        x_pix_coadd, y_pix_coadd = wcs_coadd.skyToPixel(obj_pos_lsst)
         
         if correct_coord and i==0:
             
             print('before centroid correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
-            #x_pix, y_pix = centroid_sources(data_cal, [x_pix], [y_pix], box_size=bs, centroid_func=centroid_com)
 
             sub_data = data_cal[int(y_pix)-box:box+int(y_pix),int(x_pix)-box:box+int(x_pix)]
             print(sub_data.shape)
-            #stamp_display = []
-            #fig = plt.figure(figsize=(10, 5))
-            #fig.add_subplot(1,1,1)
-            #stamp_display.append(afwDisplay.Display(frame=fig))
-            #stamp_display[0].scale('linear', 'zscale')
-            #stamp_display[0].mtv(sub_data)
             plt.imshow(sub_data)
             plt.show()
-            #print(sub_data)
             sub_data = sub_data.copy(order='C')
             objects = sep.extract(sub_data, 1000, minarea=10)
             
@@ -658,6 +659,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('Aperture radii: {} px'.format(r))
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r, var = np.asarray(diffexp.variance.array, dtype='float'))
         flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], r, var = np.asarray(calexp.variance.array, dtype='float'))
+        flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix_coadd], [y_pix_coadd], r, var = np.asarray(coadd.variance.array, dtype='float'))
 
         print('Coords: ra = {}, dec = {}'.format(ra,dec))
         print('visit : {}'.format(visits[i]))
@@ -667,41 +669,49 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #    photocalib_ref = diffexp.getPhotoCalib()
         #    flux_nJy_ref = photocalib_ref.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_lsst).value
         #    fluxerr_nJy_ref = photocalib_ref.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_lsst).error
-            
-
-
-
-
 
         if show_stamps:
-            Calib_and_Diff_plot(repo, collection_diff, collection_calexp, ra, dec, [visits[i]], ccd_num, s=r)
+            Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits[i]], ccd_num, s=r)
         #fluxes_under_aperture = values_under_aperture(data, x_pix, y_pix, r)   cutout=cutout
         #print(fluxes_under_aperture) 
         #error = np.sqrt(np.mean(fluxes_under_aperture**2)* len(fluxes_under_aperture)) 
 
         photocalib = diffexp.getPhotoCalib()
         photocalib_cal = calexp.getPhotoCalib()
-        zero_set_aux *= photocalib_cal.instFluxToNanojansky(flux[0], obj_pos_2d)/coadd_photocalib.instFluxToNanojansky(flux[0], obj_pos_2d)
+        photocalib_coadd = coadd.getPhotoCalib()
 
-        zero_set_aux += photocalib_cal.getInstFluxAtZeroMagnitude()
+        #zero_set_aux *= photocalib_cal.instFluxToNanojansky(flux[0], obj_pos_2d)/coadd_photocalib.instFluxToNanojansky(flux[0], obj_pos_2d)
+        #zero_set_aux += photocalib_cal.getInstFluxAtZeroMagnitude()
+        
         if i ==0:
             flux_reference = flux[0]
             fluxerr_reference = fluxerr[0]
             flux_at_zero_magnitude_ref = photocalib.getInstFluxAtZeroMagnitude()
             flux_at_zero_magnitude_ref_cal = photocalib_cal.getInstFluxAtZeroMagnitude()
+            flux_at_zero_magnitude_ref_coadd = photocalib_coadd.getInstFluxAtZeroMagnitude()
+
 
             #row = magzero_outputs[magzero_outputs['visit']==visits[i]]
-            #magzero_reference = row.magzero
+            magzero_firstImage = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #row.magzero
+
+        
+
         
         #row = magzero_outputs[magzero_outputs['visit']==visits[i]]
         #print(row)
-        #magzero_image = float(row.magzero)
+        magzero_image_i = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
+        #magzero_template = pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff)
 
         flux_at_zero_magnitude_img = photocalib.getInstFluxAtZeroMagnitude()
         flux_at_zero_magnitude_img_cal = photocalib_cal.getInstFluxAtZeroMagnitude()
+        flux_at_zero_magnitude_img_coadd = photocalib_coadd.getInstFluxAtZeroMagnitude()
         
-        f_scaling = flux_at_zero_magnitude_ref/flux_at_zero_magnitude_img #10**((magzero_reference - magzero_image)/-2.5)
-        f_scaling_cal = flux_at_zero_magnitude_ref_cal/flux_at_zero_magnitude_img_cal #10**((magzero_reference - magzero_image)/-2.5)
+        #f_scaling = flux_at_zero_magnitude_ref/flux_at_zero_magnitude_img #
+        #f_scaling_cal = flux_at_zero_magnitude_ref_cal/flux_at_zero_magnitude_img_cal #10**((magzero_reference - magzero_image)/-2.5)
+        #f_scaling_coadd = flux_at_zero_magnitude_ref_coadd/flux_at_zero_magnitude_img_coadd #10**((magzero_reference - magzero_image)/-2.5)
+
+        f_scaling = 10**((magzero_firstImage - magzero_image_i)/-2.5)
+
 
         flux_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).value
         fluxerr_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).error
@@ -709,17 +719,34 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('flux before scaling: ', flux[0])
         print('f scaling : ', f_scaling)
         print('flux after scaling: ', flux[0]*f_scaling)
-        Fluxes.append(flux[0]+zero_set_aux)
-        Fluxes_err.append(fluxerr[0])
+        print('flux of source in template: ', flux_coadd[0]*f_scaling)
+
+        Fluxes_unscaled.append(flux[0] + flux_coadd[0])
+        Fluxes_err_unscaled.append(fluxerr[0]+ fluxerr_coadd[0])
+
+        Fluxes.append((flux[0] + flux_coadd[0])*f_scaling)
+        Fluxes_err.append((fluxerr[0]+ fluxerr_coadd[0])*f_scaling)
 
         Fluxes_scaled.append(flux[0]*f_scaling)
         Fluxes_err_scaled.append(fluxerr[0]*f_scaling)
 
-        Fluxes_cal.append(flux_cal[0]*f_scaling_cal)
-        Fluxeserr_cal.append(fluxerr_cal[0]*f_scaling_cal)
+        Fluxes_cal.append(flux_cal[0]*f_scaling)
+        Fluxeserr_cal.append(fluxerr_cal[0]*f_scaling)
 
-        Mag.append(photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value)
-        Magerr.append(photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error)
+
+        # Adding photometry calculation step: 
+
+        phot = pc.mag_stars_calculation(repo, visits[i], ccd_num, collection_diff)
+        m_instrumental = -2.5*np.log10((flux[0]+flux_coadd[0])/float(calexp.getInfo().getVisitInfo().exposureTime))
+        airmass = float(calexp.getInfo().getVisitInfo().boresightAirmass)
+        Z_value = np.unique(np.array(phot.Z_value))
+        k_value = np.unique(np.array(phot.k_value))
+
+        Mag.append(pc.Calibration([m_instrumental, airmass], Z_value, k_value))
+        #Magerr.append()
+
+        #Mag.append(photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value)
+        #Magerr.append(photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error)
         
         #print('flux: ', flux[0])
         print('fluxerr: ', fluxerr[0])
@@ -819,99 +846,22 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     if do_lc_stars==False:      
         plt.figure(figsize=(10,6))
-        
-    
-    
-
-    #plt.errorbar(dates - min(dates), fluxes/std - norm/std, yerr=new_err/std, capsize=4, fmt='s', ecolor='blue', color='orange', label ='LSST Science Pipelines -RMS error-')
-    
-   
+    #plt.errorbar(dates - min(dates), fluxes/std - norm/std, yerr=new_err/std, capsize=4, fmt='s', ecolor='blue', color='orange', label ='LSST Science Pipelines -RMS error-')  
     plt.figure(figsize=(10,6))   
 
     #plt.set_cmap("cool")
     #median_jorge = 1
     
-    if SIBLING!=None and type(SIBLING)==str:
-        Jorge_LC = pd.read_csv(SIBLING, header=5)
-        Jorge_LC = Jorge_LC[Jorge_LC['mjd']<57072] 
-        
-        if factor==0.5:
-            mean = np.mean(Jorge_LC.aperture_flx_0)
-            param = Jorge_LC['aperture_{}_0'.format(sfx)]# - mean
-            param_err = Jorge_LC['aperture_{}_err_0'.format(sfx)]
-            median_jorge=np.median(param)
-            if sfx == 'mag':
-                median_jorge=0 
-            #
-            #std = np.norm(Jorge_LC.aperture_flx_0)
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0 - mean, yerr=Jorge_LC.aperture_flx_err_0,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd- min(Jorge_LC.mjd), param - median_jorge, yerr=param_err,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
-        if factor==0.75:
+    x, y, yerr = compare_to(SIBLING, sfx='flx', factor=factor)
 
-            
-            param = Jorge_LC['aperture_{}_1'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_1'.format(sfx)]
-            median_jorge = np.median(param)
-            mean = np.mean(param)
-            if sfx == 'mag':
-                median_jorge=0 
-            #
-            #std = np.std(Jorge_LC.aperture_flx_1)
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_1 - mean, yerr=Jorge_LC.aperture_flx_err_1,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), param - median_jorge, yerr=param_err,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
-            
-        if factor==1:
-            
-            param = Jorge_LC['aperture_{}_2'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_2'.format(sfx)]
-            mean = np.mean(param)
-            norm = np.linalg.norm(np.array(param))
-            median_jorge = np.median(param)
-
-            if sfx == 'mag':
-                median_jorge = 0  
-            #std = np.std(Jorge_LC.aperture_flx_2)
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), param - median_jorge, yerr=param_err,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
-            
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - mean, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-        if factor==1.25:
-            #std = np.std(Jorge_LC.aperture_flx_3)
-            param = Jorge_LC['aperture_{}_3'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_3'.format(sfx)]
-            mean = np.mean(param)
-            median_jorge= np.median(param)
-            if sfx == 'mag':
-                median_jorge=0 
-            #fluxes /= norm
-            #
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), param - median_jorge, yerr=param_err,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
-            
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3 - mean, yerr=Jorge_LC.aperture_flx_err_3,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-        if factor==1.5:
-            #std = np.std(Jorge_LC.aperture_flx_4)
-            
-            param = Jorge_LC['aperture_{}_4'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_4'.format(sfx)]             
-            norm = np.linalg.norm(np.array(param))
-            median_jorge= np.median(param)
-            mean = np.mean(param)
-            if sfx == 'mag':
-                median_jorge=0 
-            #norm = np.linalg.norm(fluxes)
-            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4 - mean, yerr=Jorge_LC.aperture_flx_err_4,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), param - median_jorge, yerr=param_err,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
+    plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
-    #median_jorge=1
     if do_zogy:
         zogy = zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r, instrument = 'DECam', plot_diffexp=plot_zogy_stamps, plot_coadd = plot_coadd, cutout=cutout)
         print(zogy)
-
-        z_flux = zogy.flux #* median_jorge# + flux_coadd #- np.mean(zogy.flux)
-        #z_flux_norm = np.linalg.norm(np.array(z_flux))
-        #z_flux/=z_flux_norm
-        z_ferr = zogy.flux_err# * median_jorge #**2 + fluxerr_coadd**2)**(1/2)
+        z_flux = zogy.flux
+        z_ferr = zogy.flux_err
         
-        #z_ferr/=z_flux_norm
         plt.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
 
     #sub_fluxes =  #- np.mean(fluxes)
@@ -926,21 +876,27 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest['flux_err'] = np.array(Fluxes_err)
     source_of_interest['flux_scaled'] = np.array(Fluxes_scaled) 
     source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled)
+    source_of_interest['flux_unscaled'] = np.array(Fluxes_unscaled) 
+    source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled)
+
     source_of_interest['flux_cal'] = np.array(Fluxes_cal) # scaled
     source_of_interest['flux_err_cal'] = np.array(Fluxeserr_cal) # scaled
-    source_of_interest['Mg'] = Mag#photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value #-2.5*np.log10(source_of_interest.flux + flux_coadd) + magzero_image
-    source_of_interest['Mg_err'] = Magerr#photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error #np.sqrt(2.5*source_of_interest.flux_err/(source_of_interest.flux * np.log(10)))
+    source_of_interest['Mg'] = Mag #photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value #-2.5*np.log10(source_of_interest.flux + flux_coadd) + magzero_image
+    #source_of_interest['Mg_err'] = Magerr#photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error #np.sqrt(2.5*source_of_interest.flux_err/(source_of_interest.flux * np.log(10)))
 
     source_of_interest['visit'] = visits_aux
     source_of_interest = source_of_interest.sort_values(by='dates')
 
     if sfx=='mag':
-        plt.errorbar(source_of_interest.dates, source_of_interest.Mg, yerr=source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
+        #plt.errorbar(source_of_interest.dates, source_of_interest.Mg, yerr=source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
+        plt.plot(source_of_interest.dates, source_of_interest.Mg, label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
         plt.ylabel('Excess magnitude', fontsize=15)
     
     else: 
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux/1e10, yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [wForm]', color='#0827F5', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
         plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted')
+        
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_cal - np.median(source_of_interest.flux_cal), yerr=source_of_interest.flux_err_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos [mock aperture photometry scaled]', color='red', ls ='dotted')
         plt.ylabel('Excess flux in arbitrary units', fontsize=15 )
     #plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
@@ -1289,6 +1245,113 @@ def checksMagAtOneInstFlux(repo, dataType, visit, collection, detector, instrume
     p = data.getPhotoCalib()
     mag = p.instFluxToMagnitude(1)
     return mag
+
+def compare_to(directory, sfx, factor, beforeDate=57072):
+
+    SIBLING = directory
+
+    if SIBLING!=None and SIBLING[0:24]=="/home/jahumada/Jorge_LCs" and type(SIBLING)==str:
+        Jorge_LC = pd.read_csv(SIBLING, header=5)
+        Jorge_LC = Jorge_LC[Jorge_LC['mjd']<beforeDate] 
+        
+        if factor==0.5:
+            param = Jorge_LC['aperture_{}_0'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_0'.format(sfx)]
+            median_jorge=np.median(param)
+            if sfx == 'mag':
+                median_jorge=0 
+            #
+            #std = np.norm(Jorge_LC.aperture_flx_0)
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0 - mean, yerr=Jorge_LC.aperture_flx_err_0,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            x = Jorge_LC.mjd- min(Jorge_LC.mjd)
+            y = param - median_jorge
+            yerr = param_err
+            return x, y, yerr
+        if factor==0.75:
+
+            
+            param = Jorge_LC['aperture_{}_1'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_1'.format(sfx)]
+            median_jorge = np.median(param)
+            mean = np.mean(param)
+            if sfx == 'mag':
+                median_jorge=0 
+
+            x = Jorge_LC.mjd- min(Jorge_LC.mjd)
+            y = param - median_jorge
+            yerr = param_err
+            return x, y, yerr
+
+        if factor==1:
+            
+            param = Jorge_LC['aperture_{}_2'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_2'.format(sfx)]
+            mean = np.mean(param)
+            norm = np.linalg.norm(np.array(param))
+            median_jorge = np.median(param)
+
+            if sfx == 'mag':
+                median_jorge = 0  
+            #std = np.std(Jorge_LC.aperture_flx_2)
+            x = Jorge_LC.mjd- min(Jorge_LC.mjd)
+            y = param - median_jorge
+            yerr = param_err
+            return x, y, yerr
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - mean, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+        if factor==1.25:
+            #std = np.std(Jorge_LC.aperture_flx_3)
+            param = Jorge_LC['aperture_{}_3'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_3'.format(sfx)]
+            mean = np.mean(param)
+            median_jorge= np.median(param)
+            if sfx == 'mag':
+                median_jorge=0 
+            #fluxes /= norm
+            x = Jorge_LC.mjd- min(Jorge_LC.mjd)
+            y = param - median_jorge
+            yerr = param_err
+            return x, y, yerr
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3 - mean, yerr=Jorge_LC.aperture_flx_err_3,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+        if factor==1.5:
+            #std = np.std(Jorge_LC.aperture_flx_4)
+            
+            param = Jorge_LC['aperture_{}_4'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_4'.format(sfx)]             
+            norm = np.linalg.norm(np.array(param))
+            median_jorge= np.median(param)
+            mean = np.mean(param)
+            if sfx == 'mag':
+                median_jorge=0 
+            #norm = np.linalg.norm(fluxes)
+            #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_4 - mean, yerr=Jorge_LC.aperture_flx_err_4,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
+            x = Jorge_LC.mjd- min(Jorge_LC.mjd)
+            y = param - median_jorge
+            yerr = param_err
+            return x, y, yerr
+    
+    HiTS = directory 
+
+    if HiTS!=None and HiTS[0:24]=="/home/jahumada/HiTS_LCs/" and type(HiTS)==str:
+        HiTS_LC = pd.read_csv(HiTS, skiprows = 2, delimiter=' ')
+        HiTS_LC = HiTS_LC.dropna()
+        HiTS_LC = HiTS_LC[(HiTS_LC['MJD']<beforeDate) & (HiTS_LC['band']=='g')]
+        x = HiTS_LC.MJD
+
+        if sfx == 'flx':
+            y = HiTS_LC.ADU
+            yerr = HiTS_LC.e_ADU
+            return x, y, yerr
+
+        if sfx == 'mag':
+            y = HiTS_LC.mag
+            yerr = HiTS_LC.e1_mag
+            return x, y, yerr
+
+    else:
+        None
+
+
+
 
 
 
