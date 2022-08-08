@@ -27,6 +27,8 @@ from sklearn import *
 import photometric_calib as pc
 
 bblue='#0827F5'
+dark_purple = '#2B018E'
+
 detector_nomenclature= {'S29':1, 'S30':2, 'S31':3, 'S28':7, 'S27':6, 'S26':5, 'S25':4, 'S24':12, 'S23':11, 'S22':10, 'S21':9, 'S20':8, 'S19':18, 'S18':17, 'S17':16, 'S16':15, 'S15':14, 'S14':13, 'S13':24, 'S12':23, 'S11':22, 'S10':21, 'S9':20,'S8':19, 'S7':31, 'S6':30, 'S5':29, 'S4':28, 'S3':27, 'S2':26, 'S1':25, 'N29':60, 'N30':61, 'N31':62, 'N28':59, 'N27':58, 'N26':57, 'N25':56, 'N24':55, 'N23':54, 'N22':53, 'N21':52, 'N20':51, 'N19':50, 'N18':49, 'N17':48, 'N16':47, 'N15':46, 'N14':45, 'N13':44, 'N12':43, 'N11':42, 'N10':41, 'N9':40,'N8':39, 'N7':38, 'N6':37, 'N5':36, 'N4':35, 'N3':34, 'N2':33, 'N1':32 }
 ccd_name = dict(zip(detector_nomenclature.values(), detector_nomenclature.keys()))
 sibling_allcand = pd.read_csv('/home/jahumada/testdata_hits/SIBLING_allcand.csv', index_col=0)
@@ -483,6 +485,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     Mag = []
     Magerr = [] 
 
+    Seeing = []
+
 
     Fluxes_scaled = []
     Fluxes_err_scaled = []
@@ -694,9 +698,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             #row = magzero_outputs[magzero_outputs['visit']==visits[i]]
             magzero_firstImage = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #row.magzero
 
-        
-
-        
         #row = magzero_outputs[magzero_outputs['visit']==visits[i]]
         #print(row)
         magzero_image_i = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
@@ -710,9 +711,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #f_scaling_cal = flux_at_zero_magnitude_ref_cal/flux_at_zero_magnitude_img_cal #10**((magzero_reference - magzero_image)/-2.5)
         #f_scaling_coadd = flux_at_zero_magnitude_ref_coadd/flux_at_zero_magnitude_img_coadd #10**((magzero_reference - magzero_image)/-2.5)
 
-        f_scaling = 10**((magzero_firstImage - magzero_image_i)/-2.5)
-
-
+        
+        phot = pc.mag_stars_calculation(repo, visits[i], ccd_num, collection_diff)
+        DF = phot['DataFrame']
+        seeing = np.unique(np.array(DF.seeing))[0]
+        Seeing.append(seeing)
+        alpha_scaling = phot['panstarss_counts']/phot['calcbyme_counts']
+        print('alpha scaling: ', alpha_scaling)
+        expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
+        f_scaling = alpha_scaling * expTime #10**((magzero_firstImage - magzero_image_i)/-2.5)
+        
         flux_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).value
         fluxerr_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).error
 
@@ -736,13 +744,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         # Adding photometry calculation step: 
 
-        phot = pc.mag_stars_calculation(repo, visits[i], ccd_num, collection_diff)
-        m_instrumental = -2.5*np.log10((flux[0]+flux_coadd[0])/float(calexp.getInfo().getVisitInfo().exposureTime))
-        airmass = float(calexp.getInfo().getVisitInfo().boresightAirmass)
-        Z_value = np.unique(np.array(phot.Z_value))
-        k_value = np.unique(np.array(phot.k_value))
+        
+        #m_instrumental = -2.5*np.log10((flux[0]+flux_coadd[0])/float(calexp.getInfo().getVisitInfo().exposureTime))
+        #airmass = float(calexp.getInfo().getVisitInfo().boresightAirmass)
+        #Z_value = np.unique(np.array(phot.Z_value))
+        #k_value = np.unique(np.array(phot.k_value))
 
-        Mag.append(pc.Calibration([m_instrumental, airmass], Z_value, k_value))
+        #Mag.append(pc.Calibration([m_instrumental, airmass], Z_value, k_value))
         #Magerr.append()
 
         #Mag.append(photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value)
@@ -847,14 +855,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     if do_lc_stars==False:      
         plt.figure(figsize=(10,6))
     #plt.errorbar(dates - min(dates), fluxes/std - norm/std, yerr=new_err/std, capsize=4, fmt='s', ecolor='blue', color='orange', label ='LSST Science Pipelines -RMS error-')  
-    plt.figure(figsize=(10,6))   
-
+    
+    #fig, axs = plt.subplot(2,1,sharex=True) #plt.figure(figsize=(10,6)) 
+    #fig.subplots_adjust(hspace=0)
     #plt.set_cmap("cool")
     #median_jorge = 1
     
     x, y, yerr = compare_to(SIBLING, sfx='flx', factor=factor)
-
-    plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
+    f, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [2, 1]},sharex=True, figsize=(10,6))
+    ax1.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
     if do_zogy:
         zogy = zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r, instrument = 'DECam', plot_diffexp=plot_zogy_stamps, plot_coadd = plot_coadd, cutout=cutout)
@@ -862,7 +871,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         z_flux = zogy.flux
         z_ferr = zogy.flux_err
         
-        plt.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
+        ax1.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
 
     #sub_fluxes =  #- np.mean(fluxes)
     #norm_sub_fluxes = sub_fluxes/np.linalg.norm(np.array(fluxes))
@@ -881,7 +890,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     source_of_interest['flux_cal'] = np.array(Fluxes_cal) # scaled
     source_of_interest['flux_err_cal'] = np.array(Fluxeserr_cal) # scaled
-    source_of_interest['Mg'] = Mag #photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value #-2.5*np.log10(source_of_interest.flux + flux_coadd) + magzero_image
+    #source_of_interest['Mg'] = Mag #photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value #-2.5*np.log10(source_of_interest.flux + flux_coadd) + magzero_image
     #source_of_interest['Mg_err'] = Magerr#photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error #np.sqrt(2.5*source_of_interest.flux_err/(source_of_interest.flux * np.log(10)))
 
     source_of_interest['visit'] = visits_aux
@@ -889,22 +898,26 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     if sfx=='mag':
         #plt.errorbar(source_of_interest.dates, source_of_interest.Mg, yerr=source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
-        plt.plot(source_of_interest.dates, source_of_interest.Mg, label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
-        plt.ylabel('Excess magnitude', fontsize=15)
+        ax1.plot(source_of_interest.dates, source_of_interest.Mg, label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
+        ax1.ylabel('Excess magnitude', fontsize=15)
     
     else: 
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted')
+        ax1.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
+        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
+        
+        #plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted')
         
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_cal - np.median(source_of_interest.flux_cal), yerr=source_of_interest.flux_err_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos [mock aperture photometry scaled]', color='red', ls ='dotted')
-        plt.ylabel('Excess flux in arbitrary units', fontsize=15 )
+        ax1.set_ylabel('Excess flux in arbitrary units', fontsize=15 )
     #plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
-    
-    
-    plt.xlabel('MJD', fontsize=15)
-
-    plt.title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
+    ax1.legend(ncol=2)
+    ax2 = plt.subplot(212)
+    ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
+    ax2.set_xlabel('MJD', fontsize=15)
+    ax2.axhline(0, color='grey', linestyle='--')
+    for i in range(len(source_of_interest.dates)):
+        ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
+    ax1.set_title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
     plt.legend(ncol=5)
     
     if sparse_obs:
