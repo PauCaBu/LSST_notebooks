@@ -406,6 +406,9 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
         stamp_display[0].mtv(calexp_cutout.maskedImage)
         
         stamp_display[0].dot('o', x_pix, y_pix, ctype='cyan', size=s)
+        stamp_display[0].dot('o', x_pix, y_pix, ctype='magenta', size=2*s)
+        stamp_display[0].dot('o', x_pix, y_pix, ctype='magenta', size=5*s)
+
         plt.axis('off')
         plt.title(visit_date_astropy.mjd)
 
@@ -421,6 +424,8 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
         stamp_display[1].scale('asinh', -10,10)
         stamp_display[1].mtv(diffexp_cutout.maskedImage)
         stamp_display[1].dot('o', x_pix, y_pix, ctype='cyan', size=s)
+        stamp_display[1].dot('o', x_pix, y_pix, ctype='magenta', size=2*s)
+        stamp_display[1].dot('o', x_pix, y_pix, ctype='magenta', size=5*s)
         plt.axis('off')
         plt.title(diffexp.getInfo().getVisitInfo().id)
         #for src in diffexp_cat:
@@ -434,6 +439,7 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
 
         
     return
+
 
 
 
@@ -482,6 +488,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     Fluxes_cal = []
     Fluxeserr_cal = []
 
+    Fluxes_annuli = []
+    Fluxeserr_annuli = []
+
     Mag = []
     Magerr = [] 
 
@@ -502,7 +511,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     flags = []
     dates = []
     stats = {}
-    pixel_to_arcsec = 0.2626 #value from Manual of NOAO - DECam
+    pixel_to_arcsec = 0.2626 #arcsec/pixel, value from Manual of NOAO - DECam
     
     r_in_arcsec = r 
     
@@ -515,6 +524,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     zero_set = 0
     coadd_photocalib = 0
     butler = Butler(repo)
+
+    data_for_hist = []
 
     #if collection_coadd != None:
     #    print('Looking at coadd')
@@ -560,7 +571,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data = np.asarray(diffexp.image.array, dtype='float')
         data_cal = np.asarray(calexp.image.array, dtype='float')
         data_coadd = np.asarray(coadd.image.array, dtype='float')
-
+        data_bkg = (sep.Background(data)).back()
+        plt.imshow(data_bkg, interpolation='nearest', cmap='gray', origin='lower')
+        plt.colorbar()
+        plt.show()
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
         x_pix_coadd, y_pix_coadd = wcs_coadd.skyToPixel(obj_pos_lsst)
@@ -581,8 +595,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             xc = float(obj['x'][0])
             yc = float(obj['y'][0])
             
-            x_pix = xc + int(x_pix)-box #_pix[0]
-            y_pix = yc + int(y_pix)-box #_pix[0]
+            x_pix = xc + int(x_pix)-box 
+            y_pix = yc + int(y_pix)-box
             print('after centroid correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
             ra_cor, dec_cor =  wcs.pixelToSkyArray([x_pix], [y_pix], degrees=True)
             ra = ra_cor[0]
@@ -604,36 +618,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         # Histogram of random part of image
         if hist:
-            #x = 1250
-            #y = 510 
-            #x_half_width = 100
-            #y_half_width = 100
-            #x_lower = x - x_half_width
-            #x_upper = x + x_half_width
-
-            #y_lower = y - y_half_width
-            #y_upper = y + y_half_width
-
-            #bbox = lsst.geom.Box2I()
-            #bbox.include(lsst.geom.Point2I(x_lower, y_lower))
-            #bbox.include(lsst.geom.Point2I(x_upper, y_pix + y_upper))
-
-            #diffexp_cutout = diffexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(200, 200))
-            #fig = plt.figure(figsize=(10, 5))
-
-            #stamp_display = []
-            #fig.add_subplot(1,1,1)
-            #stamp_display.append(afwDisplay.Display(frame=fig))
-            #stamp_display[0].scale('linear', 'zscale')
-            #stamp_display[0].mtv(diffexp_cutout.maskedImage)
-            #plt.show()
-
-            #data_onedim = np.ndarray.flatten(data[x_lower:x_upper, y_lower:y_upper])
-            data_onedim = np.ndarray.flatten(data[50:-50, 50:-50])
-            
-            plt.hist(data_onedim, bins=500, histtype='step', log=True, color='#7A68A6')
-            plt.title('Diffexp histogram', fontsize=15)
-            stats['{}'.format(visits[i])] = data_onedim
+            data_onedim = np.ndarray.flatten(data)
+            #data_for_hist.append(data_onedim)
+            #plt.hist(data_onedim, bins=500, histtype='step', log=True, color='#7A68A6')
+            #plt.title('Diffexp histogram', fontsize=15)
+            stats['{}'.format(visits_aux[i])] = data_onedim
             plt.show()
 
         ##############
@@ -643,7 +632,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         visit_date_python = exp_visit_info.getDate().toPython()
         visit_date_astropy = Time(visit_date_python)
         print(visit_date_astropy)            
-        #dates.append(visit_date_astropy.mjd)
         b = np.nan_to_num(np.array(data))
         wcs = diffexp.getWcs()
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
@@ -662,24 +650,18 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         print('Aperture radii: {} px'.format(r))
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r, var = np.asarray(diffexp.variance.array, dtype='float'))
+        flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r*2, r*5, var = np.asarray(diffexp.variance.array, dtype='float'))
         flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], r, var = np.asarray(calexp.variance.array, dtype='float'))
         flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix_coadd], [y_pix_coadd], r, var = np.asarray(coadd.variance.array, dtype='float'))
+        flux_coadd_an, fluxerr_coadd_an, flag_coadd = sep.sum_circann(data_coadd, [x_pix_coadd], [y_pix_coadd], r*2, r*5, var = np.asarray(coadd.variance.array, dtype='float'))
 
         print('Coords: ra = {}, dec = {}'.format(ra,dec))
         print('visit : {}'.format(visits[i]))
         
         
-        #if i==0:
-        #    photocalib_ref = diffexp.getPhotoCalib()
-        #    flux_nJy_ref = photocalib_ref.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_lsst).value
-        #    fluxerr_nJy_ref = photocalib_ref.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_lsst).error
-
         if show_stamps:
             Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits[i]], ccd_num, s=r)
-        #fluxes_under_aperture = values_under_aperture(data, x_pix, y_pix, r)   cutout=cutout
-        #print(fluxes_under_aperture) 
-        #error = np.sqrt(np.mean(fluxes_under_aperture**2)* len(fluxes_under_aperture)) 
-
+       
         photocalib = diffexp.getPhotoCalib()
         photocalib_cal = calexp.getPhotoCalib()
         photocalib_coadd = coadd.getPhotoCalib()
@@ -741,6 +723,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         Fluxes_cal.append(flux_cal[0]*f_scaling)
         Fluxeserr_cal.append(fluxerr_cal[0]*f_scaling)
 
+        Fluxes_annuli.append((flux_an[0]+flux_coadd_an[0])*f_scaling)
+        Fluxeserr_annuli.append((fluxerr_an[0]+fluxerr_coadd_an[0])*f_scaling)
+
 
         # Adding photometry calculation step: 
 
@@ -775,8 +760,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #print(Table)
         
         
-        for i in range(len(visits)):
-            diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+        for i in range(len(visits_aux)):
+            diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
 
             wcs = diffexp.getWcs()
             data = np.asarray(diffexp.image.array, dtype='float' )            
@@ -796,7 +781,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 print('x_pix : {}  y_pix : {}'.format(x_star, y_star))
                 
                 if show_star_stamps:
-                    #, cutout=80
+                    # cutout = 80
                     Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra_star, dec_star, [visits[i]], ccd_num, s=star_aperture, cutout=80)
                 
                 
@@ -815,8 +800,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             
             stars.loc[len(stars.index)] = flux_stars_and_errors            
     
-    #print(stars)
-    #plt.show()
         saturated_stars = np.unique(np.array(saturated_stars))
         plt.figure(figsize=(10,6))
         stars['dates'] = dates - min(dates)
@@ -842,28 +825,21 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 plt.errorbar(Dates, f_star, yerr= f_star_err, capsize=4, fmt='*-', label = 'star {}'.format(i+1), color = s_m.to_rgba(T[i]), alpha=0.8)
                 
 
-        #plt.yscale('log')
         plt.title('Stars LCs from {} and {} with Aperture {}"'.format(collection_diff[9:], ccd_name[ccd_num], star_aperture*pixel_to_arcsec))               
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Excess Flux in arbitrary units', fontsize=15)
         plt.legend(loc=9, ncol=5)
-    #plt.ylim(-1000,1000)
     if save_lc_stars:
-        plt.savefig('light_curves/eridanus_{}_{}_random_Stars.pdf'.format(collection_diff[9:], ccd_name[ccd_num]), bbox_inches='tight')
-    #plt.show()    
+        plt.savefig('light_curves/{}_{}_random_Stars.pdf'.format(collection_diff[9:], ccd_name[ccd_num]), bbox_inches='tight')
     
     if do_lc_stars==False:      
         plt.figure(figsize=(10,6))
-    #plt.errorbar(dates - min(dates), fluxes/std - norm/std, yerr=new_err/std, capsize=4, fmt='s', ecolor='blue', color='orange', label ='LSST Science Pipelines -RMS error-')  
     
-    #fig, axs = plt.subplot(2,1,sharex=True) #plt.figure(figsize=(10,6)) 
-    #fig.subplots_adjust(hspace=0)
-    #plt.set_cmap("cool")
-    #median_jorge = 1
-    
-    x, y, yerr = compare_to(SIBLING, sfx='flx', factor=factor)
-    f, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [2, 1]},sharex=True, figsize=(10,6))
-    ax1.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
+    f, (ax1, ax2, ax3) = plt.subplots(3, 1, gridspec_kw={'height_ratios': [2, 1, 1]},sharex=True, figsize=(10,6))
+
+    if SIBLING!=None:
+        x, y, yerr = compare_to(SIBLING, sfx='flx', factor=factor)
+        ax1.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
     if do_zogy:
         zogy = zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r, instrument = 'DECam', plot_diffexp=plot_zogy_stamps, plot_coadd = plot_coadd, cutout=cutout)
@@ -873,11 +849,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         ax1.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
 
-    #sub_fluxes =  #- np.mean(fluxes)
-    #norm_sub_fluxes = sub_fluxes/np.linalg.norm(np.array(fluxes))
-    #print('norm: ',np.linalg.norm(fluxes) )
-    #mean = np.mean(fluxes)
-    #norm = np.linalg.norm(fluxes)
 
     source_of_interest = pd.DataFrame()
     source_of_interest['dates'] = dates_aux
@@ -887,6 +858,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled)
     source_of_interest['flux_unscaled'] = np.array(Fluxes_unscaled) 
     source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled)
+    source_of_interest['flux_annuli'] = np.array(Fluxes_annuli)
+    source_of_interest['flux_err_annuli'] = np.array(Fluxeserr_annuli)
 
     source_of_interest['flux_cal'] = np.array(Fluxes_cal) # scaled
     source_of_interest['flux_err_cal'] = np.array(Fluxeserr_cal) # scaled
@@ -904,20 +877,27 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     else: 
         ax1.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
         ax1.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
-        
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted')
         
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_cal - np.median(source_of_interest.flux_cal), yerr=source_of_interest.flux_err_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos [mock aperture photometry scaled]', color='red', ls ='dotted')
         ax1.set_ylabel('Excess flux in arbitrary units', fontsize=15 )
     #plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
     ax1.legend(ncol=2)
-    ax2 = plt.subplot(212)
-    ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
-    ax2.set_xlabel('MJD', fontsize=15)
+    ax1.axhline(0, color='grey', linestyle='--')
+    #ax2 = plt.subplot(212)
     ax2.axhline(0, color='grey', linestyle='--')
+    if SIBLING!=None:
+        ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
+    
+    ax3.set_xlabel('MJD', fontsize=15)
+    
     for i in range(len(source_of_interest.dates)):
         ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
     ax1.set_title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
+    #ax3 = plt.subplot(222)
+    ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli - np.median(source_of_interest.flux_annuli), yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
+    ax3.axhline(0, color='grey', linestyle='--')
+    f.subplots_adjust(hspace=0)
     plt.legend(ncol=5)
     
     if sparse_obs:
@@ -935,15 +915,25 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     # This line below plots the stamps of the source as a single figure for all epochs available!
     if save_stamps:
         Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, list(source_of_interest.visit), ccd_num, cutout=cutout, s=r, save_stamps=save_stamps, save_as=save_as+ '_stamps')
-
+    
+    plt.show()
     
     if hist:
-        for key in stats:
-            plt.hist(stats[key], bins=500, histtype='step', log=True, label=key, alpha=0.4)
-        plt.legend()
-    
+        norm = matplotlib.colors.Normalize(vmin=0,vmax=len(visits_aux))
+        c_m = matplotlib.cm.cool
 
-        
+        s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        s_m.set_array([])
+        T = np.linspace(0,len(visits_aux),len(visits_aux))
+        j = 0
+        for key in stats:
+            plt.hist(stats[key], bins=500, histtype='step', log=True, label=key, alpha=0.5, color = s_m.to_rgba(T[j]))
+            print(np.median(stats[key]))
+            plt.axvline(np.median(stats[key]), color = s_m.to_rgba(T[j]), alpha=0.5, linestyle='--')
+            j+=1
+        plt.legend()
+        plt.xlim(-1, 1)
+        plt.show()
         
     return
 
