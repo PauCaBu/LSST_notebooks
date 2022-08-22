@@ -571,10 +571,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data = np.asarray(diffexp.image.array, dtype='float')
         data_cal = np.asarray(calexp.image.array, dtype='float')
         data_coadd = np.asarray(coadd.image.array, dtype='float')
+        coadd_bkg = (sep.Background(data_coadd)).back()
         data_bkg = (sep.Background(data)).back()
-        plt.imshow(data_bkg, interpolation='nearest', cmap='gray', origin='lower')
-        plt.colorbar()
-        plt.show()
+        data -= data_bkg #here we subtract the backgound og the difference image once again to see what happens
+        data_coadd -= coadd_bkg
+        #plt.imshow(data_bkg, interpolation='nearest', cmap='gray', origin='lower')
+        #plt.colorbar()
+        #plt.show()
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
         x_pix_coadd, y_pix_coadd = wcs_coadd.skyToPixel(obj_pos_lsst)
@@ -649,6 +652,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
 
         print('Aperture radii: {} px'.format(r))
+
+        # Doing photometry step 
+
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r, var = np.asarray(diffexp.variance.array, dtype='float'))
         flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r*2, r*5, var = np.asarray(diffexp.variance.array, dtype='float'))
         flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], r, var = np.asarray(calexp.variance.array, dtype='float'))
@@ -888,7 +894,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     ax2.axhline(0, color='grey', linestyle='--')
     if SIBLING!=None:
         ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
-    
+    ax2.legend()
     ax3.set_xlabel('MJD', fontsize=15)
     
     for i in range(len(source_of_interest.dates)):
