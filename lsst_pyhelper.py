@@ -681,8 +681,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             flux_at_zero_magnitude_ref = photocalib.getInstFluxAtZeroMagnitude()
             flux_at_zero_magnitude_ref_cal = photocalib_cal.getInstFluxAtZeroMagnitude()
             flux_at_zero_magnitude_ref_coadd = photocalib_coadd.getInstFluxAtZeroMagnitude()
-
-
             #row = magzero_outputs[magzero_outputs['visit']==visits[i]]
             magzero_firstImage = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #row.magzero
 
@@ -698,8 +696,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #f_scaling = flux_at_zero_magnitude_ref/flux_at_zero_magnitude_img #
         #f_scaling_cal = flux_at_zero_magnitude_ref_cal/flux_at_zero_magnitude_img_cal #10**((magzero_reference - magzero_image)/-2.5)
         #f_scaling_coadd = flux_at_zero_magnitude_ref_coadd/flux_at_zero_magnitude_img_coadd #10**((magzero_reference - magzero_image)/-2.5)
-
-        
         phot = pc.mag_stars_calculation(repo, visits[i], ccd_num, collection_diff)
         DF = phot['DataFrame']
         seeing = np.unique(np.array(DF.seeing))[0]
@@ -720,7 +716,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         Fluxes_unscaled.append(flux[0] + flux_coadd[0])
         Fluxes_err_unscaled.append(fluxerr[0]+ fluxerr_coadd[0])
 
-        Fluxes.append((flux[0] + flux_coadd[0])*f_scaling)
+        Fluxes.append((flux[0] + flux_coadd[0])*f_scaling) 
         Fluxes_err.append((fluxerr[0]+ fluxerr_coadd[0])*f_scaling)
 
         Fluxes_scaled.append(flux[0]*f_scaling)
@@ -855,20 +851,27 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         ax1.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
 
-
+    area_source  = np.pi * r**2
+    area_annuli = np.pi * (5*r)**2 - np.pi * (2*r)**2 
     source_of_interest = pd.DataFrame()
-    source_of_interest['dates'] = dates_aux
-    source_of_interest['flux'] = np.array(Fluxes) 
-    source_of_interest['flux_err'] = np.array(Fluxes_err)
-    source_of_interest['flux_scaled'] = np.array(Fluxes_scaled) 
-    source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled)
-    source_of_interest['flux_unscaled'] = np.array(Fluxes_unscaled) 
-    source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled)
-    source_of_interest['flux_annuli'] = np.array(Fluxes_annuli)
-    source_of_interest['flux_err_annuli'] = np.array(Fluxeserr_annuli)
-
-    source_of_interest['flux_cal'] = np.array(Fluxes_cal) # scaled
-    source_of_interest['flux_err_cal'] = np.array(Fluxeserr_cal) # scaled
+    source_of_interest['dates'] = dates_aux # dates 
+    source_of_interest['flux'] = np.array(Fluxes) # flux template + difference 
+    source_of_interest['flux_err'] = np.array(Fluxes_err) # error flux template + difference 
+    source_of_interest['flux_scaled'] = np.array(Fluxes_scaled) # difference flux 
+    source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled) #difference flux error 
+    source_of_interest['flux_unscaled'] = np.array(Fluxes_unscaled) # unscaled flux template + differenc
+    source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled) # unscaled error flux template + difference 
+    source_of_interest['flux_annuli'] = np.array(Fluxes_annuli) * area_source/area_annuli # flux of annuli template + difference 
+    source_of_interest['flux_err_annuli'] = np.array(Fluxeserr_annuli) # error flux of annuli template + difference 
+    source_of_interest['flux_annuli_subtracted_to_median'] =  source_of_interest['flux_annuli'] - np.median(source_of_interest['flux_annuli']) #/source_of_interest['flux_annuli_norm']
+    #source_of_interest['flux_annuli_norm'] = np.array(Fluxes_annuli)/np.array(Fluxes_annuli).sum()
+    source_of_interest['flux_corrected'] = source_of_interest['flux'] - source_of_interest['flux_annuli_subtracted_to_median'] #/source_of_interest['flux_annuli_norm'] 
+    
+    source_of_interest['flux_cal'] = np.array(Fluxes_cal) # scaled flux of science 
+    source_of_interest['flux_err_cal'] = np.array(Fluxeserr_cal) # scaled error flux of science 
+    
+    print(source_of_interest['flux_annuli_subtracted_to_median'])
+    
     #source_of_interest['Mg'] = Mag #photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value #-2.5*np.log10(source_of_interest.flux + flux_coadd) + magzero_image
     #source_of_interest['Mg_err'] = Magerr#photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error #np.sqrt(2.5*source_of_interest.flux_err/(source_of_interest.flux * np.log(10)))
 
@@ -881,7 +884,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         ax1.ylabel('Excess magnitude', fontsize=15)
     
     else: 
-        ax1.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
+        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_corrected - np.median(source_of_interest.flux_corrected), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
         ax1.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted')
         
@@ -893,7 +896,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #ax2 = plt.subplot(212)
     ax2.axhline(0, color='grey', linestyle='--')
     if SIBLING!=None:
-        ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
+        ax2.plot(source_of_interest.dates, source_of_interest.flux_corrected - np.median(source_of_interest.flux_corrected) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
     ax2.legend()
     ax3.set_xlabel('MJD', fontsize=15)
     
@@ -901,7 +904,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
     ax1.set_title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
     #ax3 = plt.subplot(222)
-    ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli - np.median(source_of_interest.flux_annuli), yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
+    ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli - source_of_interest.flux_annuli_subtracted_to_median, yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
     ax3.axhline(0, color='grey', linestyle='--')
     f.subplots_adjust(hspace=0)
     plt.legend(ncol=5)
