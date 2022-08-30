@@ -965,6 +965,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
     return source_of_interest
 
+
+
 def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, folder):
     """
     Plots the LCs of all sources located in one field/pointing in DECam
@@ -984,19 +986,12 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
     None
     """
     Dict = {}
-    #repo = "/home/jahumada/data_hits"
-    #field = 'Blind15A_04'
     cands = Find_sources(sibling_allcand, field)
     index = cands.index
 
     ccds = [f.split('_')[2] for f in cands.internalID]
     ra_agn = cands.raMedian
     dec_agn = cands.decMedian
-
-    #collection_diff = "imagDiff_AGN/{}".format(field)
-    #collection_calexp = "processCcdOutputs/{}".format(field)
-    #collection_coadd = 'Coadd_AGN/{}'.format(field)
-    #len(ccds)
 
     for i in range(len(ccds)):
         try:
@@ -1054,11 +1049,10 @@ def Find_sources(sibling_allcand, field):
     fs = []
     for intID in sibling_allcand.internalID:
         if type(intID)!=str:
-            #print(intID)
             pass
         else:
             fs.append(intID[:11])
-    #print(fs)
+
     if len(fs)==0:
         "No fields found uwu"
     j, = np.where(np.array(fs) == field)
