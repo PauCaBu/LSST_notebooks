@@ -965,8 +965,23 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
     return source_of_interest
 
-def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, folder = {}):
+def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, folder):
     """
+    Plots the LCs of all sources located in one field/pointing in DECam
+
+
+    Input
+    -----
+    repo : [str]
+    field : [str]
+    collection_calexp : [str]
+    collection_diff : [str]
+    collection_coadd : [str]
+    folder : [str]
+
+    Output
+    -----
+    None
     """
     Dict = {}
     #repo = "/home/jahumada/data_hits"
@@ -1000,21 +1015,21 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
     plt.figure(figsize=(10,6))
     for key in Dict:
         source_of_interest = Dict[key]
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(field), ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(key), ls ='dotted')
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux + template', fontsize=15)
-    plt.savefig('{}/{}_all_ccds_diference_and_template.png'.format(folder, field))
+    plt.savefig('{}/{}_all_ccds_diference_and_template.png'.format(folder, key))
     plt.show()
 
     plt.figure(figsize=(10,6))
     for key in Dict:
         source_of_interest = Dict[key]
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled] {}'.format(field), ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled] {}'.format(key), ls ='dotted')
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux', fontsize=15)
-    plt.savefig('{}/{}_all_ccds_difference.png'.format(folder, field))
+    plt.savefig('{}/{}_all_ccds_difference.png'.format(folder, key))
     plt.show()
     
     return
@@ -1184,8 +1199,8 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
         obj_pos_lsst_star = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_star, y_star = wcs.skyToPixel(obj_pos_lsst_star) 
         
-        j, = np.where(np.array(x_pix_stars) - x_star < 3)
-        k, = np.where(np.array(y_pix_stars) - y_star < 3)
+        j, = np.where(np.array(x_pix_stars) - x_star < 2.5)
+        k, = np.where(np.array(y_pix_stars) - y_star < 2.5)
 
         inter = np.intersect1d(j,k)
 
