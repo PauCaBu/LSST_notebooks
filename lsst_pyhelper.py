@@ -1223,8 +1223,11 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
             i+=1    
             pass
 
-    #print(stars_table)
+    print(stars_table)
     #print(transpose_table(stars_table)['DE_ICRS'])
+    if len(stars_table)==0:
+        print('No stars found meet the criteria')
+        return None
     return transpose_table(stars_table, id_col_name='RA_ICRS')
 
 
