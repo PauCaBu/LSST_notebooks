@@ -1160,7 +1160,7 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
 
     sources = pd.merge(src_pandas, diaSrcTable_pandas, on='src_id', how='outer')
     sources = pd.merge(sources, srcMatchFull_pandas, on='src_id', how='outer')
-    mask = (sources['calib_photometry_used'] == True) & (sources['calib_psf_used']==True) & (sources['ip_diffim_forced_PsfFlux_instFlux'].isnull()) & (sources['ref_id'].isnull())
+    mask = (sources['calib_photometry_used'] == True) & (sources['ip_diffim_forced_PsfFlux_instFlux'].isnull()) & (sources['ref_id'].isnull())
     phot_table = Table.from_pandas(sources[mask])
     phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra_x'] * u.rad).to(u.degree)
     phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec_x'] * u.rad).to(u.degree)
