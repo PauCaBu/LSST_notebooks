@@ -965,7 +965,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
     return source_of_interest
 
-def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
+def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, folder = {}):
     """
     """
     Dict = {}
@@ -991,8 +991,8 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
             ccdnum = detector_nomenclature[ccds[i]]
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
-            name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_trial_w_o_stellar').replace('.', '_')
-            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True)
+            #name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_trial_w_o_stellar').replace('.', '_')
+            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=False, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=False)
             Dict['{}_{}'.format(field, i)] = df
         except:
             pass
@@ -1004,7 +1004,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux + template', fontsize=15)
-    plt.savefig('{}_all_ccds_diference_and_template.png'.format(field))
+    plt.savefig('{}/{}_all_ccds_diference_and_template.png'.format(folder, field))
     plt.show()
 
     plt.figure(figsize=(10,6))
@@ -1014,7 +1014,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux', fontsize=15)
-    plt.savefig('{}_all_ccds_difference.png'.format(field))
+    plt.savefig('{}/{}_all_ccds_difference.png'.format(folder, field))
     plt.show()
     
     return
