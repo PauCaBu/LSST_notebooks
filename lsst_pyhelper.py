@@ -1193,8 +1193,8 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
         obj_pos_lsst_star = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_star, y_star = wcs.skyToPixel(obj_pos_lsst_star) 
         
-        j, = np.where(np.array(x_pix_stars) - x_star < 2.5)
-        k, = np.where(np.array(y_pix_stars) - y_star < 2.5)
+        j, = np.where(np.array(x_pix_stars) - x_star < 1)
+        k, = np.where(np.array(y_pix_stars) - y_star < 1)
 
         inter = np.intersect1d(j,k)
 
@@ -1205,6 +1205,7 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
         
         if len(inter)>0:
             print('a bad subtracted star is identified, discarded')
+
             #print('x_pix {} y_pix {}'.format(x_star , y_star))
             i+=1
             continue
