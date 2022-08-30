@@ -25,6 +25,8 @@ from photutils.centroids import centroid_sources
 from photutils.centroids import centroid_com
 from sklearn import *
 import photometric_calib as pc
+from astropy.table import Table, join, Column
+
 
 bblue='#0827F5'
 dark_purple = '#2B018E'
@@ -333,6 +335,8 @@ def Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, de
 
         for src in diffexp_cat:
             stamp_display[1].dot('o', src.getX(), src.getY(), ctype='cyan', size=4)
+            if np.fabs(x_pix - src.getX())<cutout and np.fabs(y_pix - src.getY())<cutout:
+                print('from catalog that is within the : {} {}'.format(src.getX(), src.getY()))
         plt.title('Diffexp Image and Source Catalog')
 
         plt.tight_layout()
@@ -476,7 +480,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     Output: 
     ------
-    None
+    source_of_interest : [pd.DataFrame]
     
     """
     Fluxes_unscaled = []
@@ -562,6 +566,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         calexp = butler.get('calexp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
         coadd = butler.get('goodSeeingDiff_matchedExp', visit=visits_aux[i], detector=ccd_num, collections=collection_diff, instrument='DECam')
 
+
         wcs_coadd = coadd.getWcs()
         wcs = diffexp.getWcs()
         
@@ -571,13 +576,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data = np.asarray(diffexp.image.array, dtype='float')
         data_cal = np.asarray(calexp.image.array, dtype='float')
         data_coadd = np.asarray(coadd.image.array, dtype='float')
-        coadd_bkg = (sep.Background(data_coadd)).back()
-        data_bkg = (sep.Background(data)).back()
-        data -= data_bkg #here we subtract the backgound og the difference image once again to see what happens
-        data_coadd -= coadd_bkg
+        
+        #coadd_bkg = (sep.Background(data_coadd)).back()
+        #data_bkg = (sep.Background(data)).back()
+        #data -= data_bkg #here we subtract the backgound og the difference image once again to see what happens
+        #data_coadd -= coadd_bkg
+        
         #plt.imshow(data_bkg, interpolation='nearest', cmap='gray', origin='lower')
         #plt.colorbar()
         #plt.show()
+        
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
         x_pix_coadd, y_pix_coadd = wcs_coadd.skyToPixel(obj_pos_lsst)
@@ -749,24 +757,28 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('------------------------------------------')
 
     if do_lc_stars == True:
-        columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1)] for i in range(nstars)]))
-        stars = pd.DataFrame(columns=columns_stars)
+        
+        
         py = 2048 - 100
         px = 4096 - 100
         width = px*pixel_to_arcsec
         height = py*pixel_to_arcsec
         print('width: {} , height : {}'.format(width, height))
-        Table = Find_stars(ra_center, dec_center, width, height, n=nstars, seed=[do_lc_stars, seedstars])
-        RA = np.array(Table['RA_ICRS'])
-        DEC = np.array(Table['DE_ICRS'])
-        #print(Table)
+        stars_table = Find_stars_from_LSST_to_PS1(butler, visits_aux[0], ccd_num, collection_diff, n=nstars)
+        print(stars_table)
+        RA = np.array(stars_table['RA_ICRS'], dtype=float)
+        DEC = np.array(stars_table['DE_ICRS'], dtype=float)
         
+        nstars = len(stars_table)
+
+        columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1)] for i in range(nstars)]))
+        stars = pd.DataFrame(columns=columns_stars)
         
-        for i in range(len(visits_aux)):
-            diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+        for j in range(len(visits_aux)):
+            diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[j], detector=ccd_num , collections=collection_diff, instrument='DECam')
 
             wcs = diffexp.getWcs()
-            data = np.asarray(diffexp.image.array, dtype='float' )            
+            data = np.asarray(diffexp.image.array, dtype='float')            
             
             flux_stars_and_errors = []
             star_aperture = 2 # arcsec 
@@ -784,13 +796,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 
                 if show_star_stamps:
                     # cutout = 80
-                    Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra_star, dec_star, [visits[i]], ccd_num, s=star_aperture, cutout=80)
-                
+                    #Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra_star, dec_star, [visits_aux[j]], ccd_num, cutout=80, s=star_aperture, save_stamps=False, save_as='')
+                    Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra_star, dec_star, [visits_aux[j]], ccd_num, s=star_aperture, cutout=80)
                 
                 f, f_err, fg = sep.sum_circle(data, [x_star], [y_star], star_aperture, var = np.asarray(diffexp.variance.array, dtype='float'))
                 
-                if f>2000:
-                    
+                if (f>2000 or f < -2000):
                     saturated_stars.append(i+1)
                     
                 flux_stars_and_errors.append(f[0])
@@ -833,9 +844,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.legend(loc=9, ncol=5)
     if save_lc_stars:
         plt.savefig('light_curves/{}_{}_random_Stars.pdf'.format(collection_diff[9:], ccd_name[ccd_num]), bbox_inches='tight')
+
+    plt.show()    
     
-    if do_lc_stars==False:      
-        plt.figure(figsize=(10,6))
+    #if do_lc_stars==False:      
+    #    plt.figure(figsize=(10,6))
     
     f, (ax1, ax2, ax3) = plt.subplots(3, 1, gridspec_kw={'height_ratios': [2, 1, 1]},sharex=True, figsize=(10,6))
 
@@ -861,16 +874,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled) #difference flux error 
     source_of_interest['flux_unscaled'] = np.array(Fluxes_unscaled) # unscaled flux template + differenc
     source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled) # unscaled error flux template + difference 
-    source_of_interest['flux_annuli'] = np.array(Fluxes_annuli) * area_source/area_annuli # flux of annuli template + difference 
+    source_of_interest['flux_annuli'] = np.array(Fluxes_annuli) #* area_source/area_annuli # flux of annuli template + difference 
     source_of_interest['flux_err_annuli'] = np.array(Fluxeserr_annuli) # error flux of annuli template + difference 
-    source_of_interest['flux_annuli_subtracted_to_median'] =  source_of_interest['flux_annuli'] - np.median(source_of_interest['flux_annuli']) #/source_of_interest['flux_annuli_norm']
+    #source_of_interest['flux_annuli_subtracted_to_median'] =  source_of_interest['flux_annuli'] - np.median(source_of_interest['flux_annuli']) #/source_of_interest['flux_annuli_norm']
     #source_of_interest['flux_annuli_norm'] = np.array(Fluxes_annuli)/np.array(Fluxes_annuli).sum()
-    source_of_interest['flux_corrected'] = source_of_interest['flux'] - source_of_interest['flux_annuli_subtracted_to_median'] #/source_of_interest['flux_annuli_norm'] 
+    #source_of_interest['flux_corrected'] = source_of_interest['flux'] - source_of_interest['flux_annuli_subtracted_to_median'] #/source_of_interest['flux_annuli_norm'] 
     
     source_of_interest['flux_cal'] = np.array(Fluxes_cal) # scaled flux of science 
     source_of_interest['flux_err_cal'] = np.array(Fluxeserr_cal) # scaled error flux of science 
     
-    print(source_of_interest['flux_annuli_subtracted_to_median'])
+    #print(source_of_interest['flux_annuli_subtracted_to_median'])
     
     #source_of_interest['Mg'] = Mag #photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value #-2.5*np.log10(source_of_interest.flux + flux_coadd) + magzero_image
     #source_of_interest['Mg_err'] = Magerr#photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error #np.sqrt(2.5*source_of_interest.flux_err/(source_of_interest.flux * np.log(10)))
@@ -884,7 +897,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         ax1.ylabel('Excess magnitude', fontsize=15)
     
     else: 
-        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_corrected - np.median(source_of_interest.flux_corrected), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
+        ax1.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
         ax1.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted')
         
@@ -894,18 +907,24 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     ax1.legend(ncol=2)
     ax1.axhline(0, color='grey', linestyle='--')
     #ax2 = plt.subplot(212)
-    ax2.axhline(0, color='grey', linestyle='--')
+    
     if SIBLING!=None:
-        ax2.plot(source_of_interest.dates, source_of_interest.flux_corrected - np.median(source_of_interest.flux_corrected) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
-    ax2.legend()
+        ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
+        ax2.legend()
+        ax2.axhline(0, color='grey', linestyle='--')
+
+        for i in range(len(source_of_interest.dates)):
+            ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
+
+
     ax3.set_xlabel('MJD', fontsize=15)
     
-    for i in range(len(source_of_interest.dates)):
-        ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
+    
     ax1.set_title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
     #ax3 = plt.subplot(222)
-    ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli - source_of_interest.flux_annuli_subtracted_to_median, yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
-    ax3.axhline(0, color='grey', linestyle='--')
+    ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli, yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
+    ax3.set_ylabel('ADU', fontsize=12)
+    #ax3.axhline(0, color='grey', linestyle='--')
     f.subplots_adjust(hspace=0)
     plt.legend(ncol=5)
     
@@ -944,6 +963,60 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.xlim(-1, 1)
         plt.show()
         
+    return source_of_interest
+
+def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
+    """
+    """
+    Dict = {}
+    #repo = "/home/jahumada/data_hits"
+    #field = 'Blind15A_04'
+    cands = Find_sources(sibling_allcand, field)
+    index = cands.index
+
+    ccds = [f.split('_')[2] for f in cands.internalID]
+    ra_agn = cands.raMedian
+    dec_agn = cands.decMedian
+
+    #collection_diff = "imagDiff_AGN/{}".format(field)
+    #collection_calexp = "processCcdOutputs/{}".format(field)
+    #collection_coadd = 'Coadd_AGN/{}'.format(field)
+    #len(ccds)
+
+    for i in range(len(ccds)):
+        try:
+            data = get_all_exposures(repo, 'science')
+            visits = list(data[(data['target_name']=='{}'.format(field)) & (data['day_obs']<20150219)].exposure)
+            ra, dec = ra_agn[index[i]], dec_agn[index[i]]
+            ccdnum = detector_nomenclature[ccds[i]]
+            title = '{}'.format(cands.SDSS12[index[i]])
+            folder = '{}/'.format(field)
+            name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_trial_w_o_stellar').replace('.', '_')
+            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True)
+            Dict['{}_{}'.format(field, i)] = df
+        except:
+            pass
+    
+    plt.figure(figsize=(10,6))
+    for key in Dict:
+        source_of_interest = Dict[key]
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(field), ls ='dotted')
+        plt.xlabel('MJD', fontsize=15)
+        plt.ylabel('Flux in arbitrary units', fontsize=15)
+        plt.title('Difference flux + template', fontsize=15)
+    plt.savefig('{}_all_ccds_diference_and_template.png'.format(field))
+    plt.show()
+
+    plt.figure(figsize=(10,6))
+    for key in Dict:
+        source_of_interest = Dict[key]
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled] {}'.format(field), ls ='dotted')
+        plt.xlabel('MJD', fontsize=15)
+        plt.ylabel('Flux in arbitrary units', fontsize=15)
+        plt.title('Difference flux', fontsize=15)
+    plt.savefig('{}_all_ccds_difference.png'.format(field))
+    plt.show()
+    
     return
 
 def Find_sources(sibling_allcand, field):
@@ -1035,8 +1108,148 @@ def Find_stars(ra, dec, width, height, n, seed=[True, 200]):
     len_table = len(result[0])
     random_indexes = random.sample(range(len_table), n)
     
-    Table = result[0][random_indexes]
-    return Table
+    table = result[0][random_indexes]
+    return table
+
+
+def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
+    """
+    Finds n stars in a rectangular aperture, which I intend to be the ccd size.
+    
+    Inputs:
+    ------
+    ra : [float] right ascention position in degrees
+    dec : [float] declination position in degrees 
+    width : [float] width of rectangular aperture in arcsec 
+    height : [float] height of reclangular aperture in arcsec
+    n : [int] number of stars we wan to find
+    seed : [tuple (bool, int)] if bool is True, we set a random seed equal to int
+    
+    Outputs:
+    -------
+    stars_table : [astropy.table] table with the selected stars 
+    
+    """
+    
+
+    diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    wcs = diffexp.getWcs()
+     
+    src = butler.get('src',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    diaSrcTable = butler.get('goodSeeingDiff_diaSrc', visit=visit, detector=ccdnum, collections=collection_diff, instrument='DECam') 
+    diaSrcTable_pandas = diaSrcTable.asAstropy().to_pandas()
+    src_pandas = src.asAstropy().to_pandas()
+    srcMatchFull = butler.get('srcMatchFull', visit=visit, detector=ccdnum, collections=collection_diff, instrument='DECam')
+    srcMatchFull_pandas = srcMatchFull.asAstropy().to_pandas()
+
+    
+    src_pandas = src_pandas.rename(columns = {'id':'src_id'})
+    diaSrcTable_pandas = diaSrcTable_pandas.rename(columns = {'id' : 'src_id'})
+
+    x_pix_stars = []
+    y_pix_stars = []
+    for src in diaSrcTable:
+        x_pix_stars.append(src.getX())
+        y_pix_stars.append(src.getY())
+    #new_df = pd.merge(diaSrcTable, srcMatchFull_pandas, on='src_id', how = 'outer')
+    #sources = pd.merge(src_pandas, new_df, on=['src_id'], how='outer')
+
+    pdimy = 2048 
+    pdimx = 4096 
+
+
+    sources = pd.merge(src_pandas, diaSrcTable_pandas, on='src_id', how='outer')
+    sources = pd.merge(sources, srcMatchFull_pandas, on='src_id', how='outer')
+    mask = (sources['calib_photometry_used'] == True) & (sources['calib_psf_used']==True) & (sources['ip_diffim_forced_PsfFlux_instFlux'].isnull()) & (sources['ref_id'].isnull())
+    phot_table = Table.from_pandas(sources[mask])
+    phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra_x'] * u.rad).to(u.degree)
+    phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec_x'] * u.rad).to(u.degree)
+
+    if n > len(phot_table):
+        n = len(phot_table)
+
+    print('trying with {} stars'.format(n))
+    stars_table = Table()
+    i = 0 
+    while i < n:
+        print('looking at star number {}'.format(i+1))
+        ra = phot_table['coord_ra_ddegrees'][i]
+        dec = phot_table['coord_dec_ddegrees'][i]
+        c = SkyCoord(ra * u.degree, dec * u.degree, frame='icrs')
+        result = Vizier.query_region(c,
+                                    radius = 2 * u.arcsec,
+                                    catalog='I/345/gaia2',
+                                    column_filters={'Gmag': '>15', 'Gmag': '<25','Var':"!=VARIABLE"})
+
+        obj_pos_lsst_star = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+        x_star, y_star = wcs.skyToPixel(obj_pos_lsst_star) 
+        
+        j, = np.where(np.array(x_pix_stars) - x_star < 3)
+        k, = np.where(np.array(y_pix_stars) - y_star < 3)
+
+        inter = np.intersect1d(j,k)
+
+        if np.fabs(pdimy - y_star) <= 100 or np.fabs(pdimx - x_star) <=100 or x_star <=100 or y_star <= 100:
+            print('this star is to close to the edges, discarded')
+            i+=1
+            continue
+        
+        if len(inter)>0:
+            print('a bad subtracted star is identified, discarded')
+            #print('x_pix {} y_pix {}'.format(x_star , y_star))
+            i+=1
+            continue
+        
+        try:
+            print('We are trying...')
+            #print(result[0])
+            if len(stars_table) == 0:
+                print('we add a star!')
+                little_table = result[0]
+                little_table = little_table['RA_ICRS', 'DE_ICRS']
+                stars_table = transpose_table(little_table, id_col_name='RA_ICRS')
+                #print('stars_table: ',stars_table)
+                #print(['RA_ICRS'])
+                
+            else:
+                #print(result[0]['RA_ICRS'])
+                print('adding one more star!')
+                little_table = result[0]['RA_ICRS', 'DE_ICRS']
+                #print('little table: ',little_table)
+                stars_table = join(stars_table,transpose_table(little_table, id_col_name='RA_ICRS'))
+                #print('stars_table: ',stars_table)
+            i+=1
+        except:
+            i+=1    
+            pass
+
+    #print(stars_table)
+    #print(transpose_table(stars_table)['DE_ICRS'])
+    return transpose_table(stars_table, id_col_name='RA_ICRS')
+
+
+def transpose_table(tab_before, id_col_name='ID'):
+    '''Returns a copy of tab_before (an astropy.Table) with rows and columns interchanged
+        id_col_name: name for optional ID column corresponding to
+        the column names of tab_before
+        
+        https://gist.github.com/PBarmby - github, tab_trans.py 
+        
+        '''
+    # contents of the first column of the old table provide column names for the new table
+    # TBD: check for duplicates in new_colnames & resolve
+    new_colnames=tuple(tab_before[tab_before.colnames[0]])
+    # remaining columns of old table are row IDs for new table 
+    new_rownames=tab_before.colnames[1:]
+    # make a new, empty table
+    tab_after=Table(names=new_colnames)
+    # add the columns of the old table as rows of the new table
+    for r in new_rownames:
+        tab_after.add_row(tab_before[r])
+    if id_col_name != '':
+        # add the column headers of the old table as the id column of new table
+        tab_after.add_column(Column(new_rownames, name=id_col_name),index=0)
+    return(tab_after)
 
 def detector_number_to_ccd(num):
     """
