@@ -1003,7 +1003,8 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
         plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(field), ls ='dotted')
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
-        plt.title('Difference flux + template', fontsize=15)
+        plt.title('Difference flux + template - median', fontsize=15)
+    plt.legend()
     plt.savefig('{}_all_ccds_diference_and_template.png'.format(field))
     plt.show()
 
@@ -1014,10 +1015,28 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux', fontsize=15)
+    plt.legend()
     plt.savefig('{}_all_ccds_difference.png'.format(field))
     plt.show()
     
+    
     return
+
+
+def all_ccds_Jorge(field):
+    cands = Find_sources(sibling_allcand, field)
+    index = cands.index
+    
+    ccds = [f.split('_')[2] for f in cands.internalID]
+    plt.figure(figsize=(10,6))
+    for i in range(len(ccds)):
+        SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv'
+        sfx = 'flx'
+        factor = 0.75
+        x,y,yerr = compare_to(SIBLING, sfx, factor, beforeDate=57072)
+        plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020 ', ls ='dotted')
+    return
+
 
 def Find_sources(sibling_allcand, field):
     """
@@ -1202,7 +1221,6 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
         
         try:
             print('We are trying...')
-            #print(result[0])
             if len(stars_table) == 0:
                 print('we add a star!')
                 little_table = result[0]
@@ -1224,7 +1242,6 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
             pass
 
     print(stars_table)
-    #print(transpose_table(stars_table)['DE_ICRS'])
     if len(stars_table)==0:
         print('No stars found meet the criteria')
         return None
@@ -1475,6 +1492,20 @@ def checksMagAtOneInstFlux(repo, dataType, visit, collection, detector, instrume
     return mag
 
 def compare_to(directory, sfx, factor, beforeDate=57072):
+    '''
+    Returns Jorge Martinez-Palomera or Francisco Forsters code
+    
+    Input
+    -----
+    directory :
+    sfx :
+    factor :
+    beforeDate :
+    
+    Output
+    ------
+    x, y, yerr
+    '''
 
     SIBLING = directory
 
