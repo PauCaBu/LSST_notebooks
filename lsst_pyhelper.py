@@ -993,30 +993,30 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
             folder = '{}/'.format(field)
             name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_trial_w_o_stellar').replace('.', '_')
             df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True)
-            Dict['{}_{}'.format(field, i)] = df
+            Dict['{}_{}'.format(field, ccds[i])] = df
         except:
             pass
     
     plt.figure(figsize=(10,6))
     for key in Dict:
         source_of_interest = Dict[key]
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(field), ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(key), ls ='dotted')
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux + template - median', fontsize=15)
     plt.legend()
-    plt.savefig('{}_all_ccds_diference_and_template.png'.format(field))
+    plt.savefig('{}/All_ccds_diference_and_template.png'.format(field))
     plt.show()
 
     plt.figure(figsize=(10,6))
     for key in Dict:
         source_of_interest = Dict[key]
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled] {}'.format(field), ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled] {}'.format(key), ls ='dotted')
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux', fontsize=15)
     plt.legend()
-    plt.savefig('{}_all_ccds_difference.png'.format(field))
+    plt.savefig('{}/All_ccds_difference.png'.format(field))
     plt.show()
     
     
@@ -1024,6 +1024,9 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
 
 
 def all_ccds_Jorge(field):
+    '''
+    
+    '''
     cands = Find_sources(sibling_allcand, field)
     index = cands.index
     
@@ -1034,7 +1037,11 @@ def all_ccds_Jorge(field):
         sfx = 'flx'
         factor = 0.75
         x,y,yerr = compare_to(SIBLING, sfx, factor, beforeDate=57072)
-        plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020 ', ls ='dotted')
+        plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020 {}'.format(ccds[i]), ls ='dotted')
+    plt.legend()
+    plt.savefig('{}/All_ccds_Jorge_aperture.png'.format(field))
+    plt.show()
+    
     return
 
 
