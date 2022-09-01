@@ -1003,6 +1003,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
 
         except:
             pass
+    ccds_used = np.unique(ccds_used)
     norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
     c_m = matplotlib.cm.plasma
 
@@ -1239,6 +1240,8 @@ def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
         y_pix_stars.append(src.getY())
     #new_df = pd.merge(diaSrcTable, srcMatchFull_pandas, on='src_id', how = 'outer')
     #sources = pd.merge(src_pandas, new_df, on=['src_id'], how='outer')
+    x_pix_stars = np.array(x_pix_stars)
+    y_pix_stars = np.array(y_pix_stars)
 
     pdimy = 2048 
     pdimx = 4096 
@@ -1270,8 +1273,8 @@ def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
         obj_pos_lsst_star = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_star, y_star = wcs.skyToPixel(obj_pos_lsst_star) 
         
-        j, = np.where(np.array(x_pix_stars) - x_star < 1)
-        k, = np.where(np.array(y_pix_stars) - y_star < 1)
+        j, = np.where(np.fabs(np.array(x_pix_stars) - x_star) < 1)
+        k, = np.where(np.fabs(np.array(y_pix_stars) - y_star) < 1)
 
         inter = np.intersect1d(j,k)
 
@@ -1281,7 +1284,7 @@ def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
             continue
         
         if len(inter)>0:
-            print('near pixel xpix {} ypix {}'.format(x_pix_stars[inter[0]], y_pix_stars[inter[0]]))
+            print('near pixel xpix {} ypix {}'.format(x_pix_stars[inter], y_pix_stars[inter]))
             print('a bad subtracted star is identified, discarded')
             Calib_and_Diff_plot_cropped(repo, collection_diff, collection_diff, ra, dec, [visit], ccdnum, s=10)
             print('x_pix {} y_pix {}'.format(x_star , y_star))
