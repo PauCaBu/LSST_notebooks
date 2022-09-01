@@ -764,7 +764,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         width = px*pixel_to_arcsec
         height = py*pixel_to_arcsec
         print('width: {} , height : {}'.format(width, height))
-        stars_table = Find_stars_from_LSST_to_PS1(butler, visits_aux[2], ccd_num, collection_diff, n=nstars)
+        stars_table = Find_stars_from_LSST_to_PS1(repo, visits_aux[2], ccd_num, collection_diff, n=nstars)
         print(stars_table)
         if stars_table == None:
             print('No stars well subtracted were found :(')
@@ -1063,14 +1063,47 @@ def all_ccds_Jorge(field, ccds):
         sfx = 'flx'
         factor = 0.75
         x,y,yerr = compare_to(SIBLING, sfx, factor, beforeDate=57072)
+        print(ccds[i])
         plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', label='Martinez-Palomera et al. 2020 {}'.format(ccds[i]), ls ='dotted', color = s_m.to_rgba(T[i]))
         i+=1
     plt.legend()
+    plt.title('Aperture Fotometry by Martinez-Palomera')
     plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/All_ccds_Jorge_aperture.png'.format(field))
     plt.show()
     
     return
 
+def Find_ccd_for_ra_dec(repo, field, collection_calexp, ra, dec):
+    '''
+    Find the ccd that corresponds to a certain ra, dec position
+
+    Input:
+    -----
+    repo
+    collection_calexp
+    ra
+    dec
+
+    Output:
+    ------
+    ccd : [int] detector number 
+    '''
+    CCDS = []
+    data = get_all_exposures(repo, 'science')
+    visits = data[data['target_name']=='{}'.format(field)].exposure
+    index_visits = visits.index
+    for key in detector_nomenclature:
+        try:
+            #print(detector_nomenclature[key])
+            Calib_cropped(repo, collection_calexp, ra, dec, [visits[visits.index[0]]],  detector_nomenclature[key], cutout=40, s=20)
+            #lp.Calib_plot(repo, collection, ra, dec, [visits[visits.index[0]]], detector_nomenclature[key], s=20)
+            CCDS.append(detector_nomenclature[key])
+            #lp.Calib_cropped(repo, collection ra, dec, [visits[0]],  detector_nomenclature[key], cutout=40, s=20)
+        except:
+            continue
+
+    
+    return CCDS 
 
 def Find_sources(sibling_allcand, field):
     """
@@ -1248,10 +1281,10 @@ def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
             continue
         
         if len(inter)>0:
-
+            print('near pixel xpix {} ypix {}'.format(x_pix_stars[inter[0]], y_pix_stars[inter[0]]))
             print('a bad subtracted star is identified, discarded')
             Calib_and_Diff_plot_cropped(repo, collection_diff, collection_diff, ra, dec, [visit], ccdnum, s=10)
-            #print('x_pix {} y_pix {}'.format(x_star , y_star))
+            print('x_pix {} y_pix {}'.format(x_star , y_star))
             i+=1
             continue
         
