@@ -1273,8 +1273,8 @@ def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
         obj_pos_lsst_star = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_star, y_star = wcs.skyToPixel(obj_pos_lsst_star) 
         
-        j, = np.where(np.fabs(np.array(x_pix_stars) - x_star) < 1)
-        k, = np.where(np.fabs(np.array(y_pix_stars) - y_star) < 1)
+        j, = np.where(np.fabs(np.array(x_pix_stars) - x_star) < 3)
+        k, = np.where(np.fabs(np.array(y_pix_stars) - y_star) < 3)
 
         inter = np.intersect1d(j,k)
 
