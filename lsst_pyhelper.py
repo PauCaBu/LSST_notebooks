@@ -764,8 +764,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         width = px*pixel_to_arcsec
         height = py*pixel_to_arcsec
         print('width: {} , height : {}'.format(width, height))
-        stars_table = Find_stars_from_LSST_to_PS1(butler, visits_aux[0], ccd_num, collection_diff, n=nstars)
+        stars_table = Find_stars_from_LSST_to_PS1(butler, visits_aux[2], ccd_num, collection_diff, n=nstars)
         print(stars_table)
+        if stars_table == None:
+            print('No stars well subtracted were found :(')
+            return
         RA = np.array(stars_table['RA_ICRS'], dtype=float)
         DEC = np.array(stars_table['DE_ICRS'], dtype=float)
         
@@ -967,6 +970,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
 def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
     """
+
     """
     Dict = {}
     #repo = "/home/jahumada/data_hits"
@@ -983,6 +987,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
     #collection_coadd = 'Coadd_AGN/{}'.format(field)
     #len(ccds)
 
+    ccds_used = []
     for i in range(len(ccds)):
         try:
             data = get_all_exposures(repo, 'science')
@@ -992,54 +997,76 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
             name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_trial_w_o_stellar').replace('.', '_')
-            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True)
+            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=False, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True)
             Dict['{}_{}'.format(field, ccds[i])] = df
+            ccds_used.append(ccds)
+
         except:
             pass
-    
+    norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
+    c_m = matplotlib.cm.plasma
+
+    # create a ScalarMappable and initialize a data structure
+    s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+    s_m.set_array([])
+    T = np.linspace(0,27,len(ccds_used))
+
     plt.figure(figsize=(10,6))
+    i=0
     for key in Dict:
         source_of_interest = Dict[key]
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(key), ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos {}'.format(key), ls ='dotted',  color = s_m.to_rgba(T[i]))
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux + template - median', fontsize=15)
+        i+=1
     plt.legend()
-    plt.savefig('{}/All_ccds_diference_and_template.png'.format(field))
+    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/All_ccds_diference_and_template.png'.format(field))
     plt.show()
 
     plt.figure(figsize=(10,6))
+    i=0
     for key in Dict:
         source_of_interest = Dict[key]
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled] {}'.format(key), ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled] {}'.format(key), ls ='dotted',  color = s_m.to_rgba(T[i]))
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Flux in arbitrary units', fontsize=15)
         plt.title('Difference flux', fontsize=15)
+        i+=1
     plt.legend()
-    plt.savefig('{}/All_ccds_difference.png'.format(field))
+    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/All_ccds_difference.png'.format(field))
     plt.show()
     
     
-    return
+    return ccds_used
 
 
-def all_ccds_Jorge(field):
+def all_ccds_Jorge(field, ccds):
     '''
     
     '''
     cands = Find_sources(sibling_allcand, field)
     index = cands.index
     
-    ccds = [f.split('_')[2] for f in cands.internalID]
+    #ccds = [f.split('_')[2] for f in cands.internalID]
     plt.figure(figsize=(10,6))
+    norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
+    c_m = matplotlib.cm.plasma
+
+    # create a ScalarMappable and initialize a data structure
+    s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+    s_m.set_array([])
+    T = np.linspace(0,27,len(ccds))
+    i=0
     for i in range(len(ccds)):
         SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv'
         sfx = 'flx'
         factor = 0.75
         x,y,yerr = compare_to(SIBLING, sfx, factor, beforeDate=57072)
-        plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020 {}'.format(ccds[i]), ls ='dotted')
+        plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', label='Martinez-Palomera et al. 2020 {}'.format(ccds[i]), ls ='dotted', color = s_m.to_rgba(T[i]))
+        i+=1
     plt.legend()
-    plt.savefig('{}/All_ccds_Jorge_aperture.png'.format(field))
+    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/All_ccds_Jorge_aperture.png'.format(field))
     plt.show()
     
     return
@@ -1138,7 +1165,7 @@ def Find_stars(ra, dec, width, height, n, seed=[True, 200]):
     return table
 
 
-def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
+def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
     """
     Finds n stars in a rectangular aperture, which I intend to be the ccd size.
     
@@ -1156,7 +1183,7 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
     stars_table : [astropy.table] table with the selected stars 
     
     """
-    
+    butler = Butler(repo)
 
     diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
     wcs = diffexp.getWcs()
@@ -1210,8 +1237,8 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
         obj_pos_lsst_star = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_star, y_star = wcs.skyToPixel(obj_pos_lsst_star) 
         
-        j, = np.where(np.array(x_pix_stars) - x_star < 3)
-        k, = np.where(np.array(y_pix_stars) - y_star < 3)
+        j, = np.where(np.array(x_pix_stars) - x_star < 1)
+        k, = np.where(np.array(y_pix_stars) - y_star < 1)
 
         inter = np.intersect1d(j,k)
 
@@ -1221,7 +1248,9 @@ def Find_stars_from_LSST_to_PS1(butler, visit, ccdnum, collection_diff, n):
             continue
         
         if len(inter)>0:
+
             print('a bad subtracted star is identified, discarded')
+            Calib_and_Diff_plot_cropped(repo, collection_diff, collection_diff, ra, dec, [visit], ccdnum, s=10)
             #print('x_pix {} y_pix {}'.format(x_star , y_star))
             i+=1
             continue
