@@ -447,7 +447,7 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
 
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, factor=None, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps='False'):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, factor=None, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=True):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -673,6 +673,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('visit : {}'.format(visits[i]))
         
         
+        
         if show_stamps:
             Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits[i]], ccd_num, s=r)
        
@@ -721,6 +722,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('flux after scaling: ', flux[0]*f_scaling)
         print('flux of source in template: ', flux_coadd[0]*f_scaling)
 
+
+        if flux[0] > 1500 :
+            print('This source is bad subtracted')
+
+            return
+
         Fluxes_unscaled.append(flux[0] + flux_coadd[0])
         Fluxes_err_unscaled.append(fluxerr[0]+ fluxerr_coadd[0])
 
@@ -764,7 +771,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         width = px*pixel_to_arcsec
         height = py*pixel_to_arcsec
         print('width: {} , height : {}'.format(width, height))
-        stars_table = Find_stars_from_LSST_to_PS1(repo, visits_aux[2], ccd_num, collection_diff, n=nstars)
+        stars_table = Find_stars_from_LSST_to_PS1(repo, visits_aux[0], ccd_num, collection_diff, n=nstars, well_subtracted=well_subtracted)
         print(stars_table)
         if stars_table == None:
             print('No stars well subtracted were found :(')
@@ -784,7 +791,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             data = np.asarray(diffexp.image.array, dtype='float')            
             
             flux_stars_and_errors = []
-            star_aperture = 2 # arcsec 
+            star_aperture = 1 # arcsec 
             star_aperture/=pixel_to_arcsec # transform it to pixel values 
             saturated_stars = []
             for i in range(nstars):
@@ -840,13 +847,18 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             if len(j)==0:
                 plt.errorbar(Dates, f_star, yerr= f_star_err, capsize=4, fmt='*-', label = 'star {}'.format(i+1), color = s_m.to_rgba(T[i]), alpha=0.8)
                 
+        if well_subtracted:
+            plt.title('Well subtracted stars LCs -Difference flux- from {} and {} with Aperture {}"'.format(collection_diff[9:], ccd_name[ccd_num], star_aperture*pixel_to_arcsec)) 
+        if not well_subtracted:
+            plt.title('stars LCs -Difference flux- from {} and {} with Aperture {}"'.format(collection_diff[9:], ccd_name[ccd_num], star_aperture*pixel_to_arcsec)) 
 
-        plt.title('Stars LCs from {} and {} with Aperture {}"'.format(collection_diff[9:], ccd_name[ccd_num], star_aperture*pixel_to_arcsec))               
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('Excess Flux in arbitrary units', fontsize=15)
         plt.legend(loc=9, ncol=5)
+
+    field = collection_diff[13:]
     if save_lc_stars:
-        plt.savefig('light_curves/{}_{}_random_Stars.pdf'.format(collection_diff[9:], ccd_name[ccd_num]), bbox_inches='tight')
+        plt.savefig('light_curves/{}/{}_{}_random_Stars.pdf'.format(field, field, ccd_name[ccd_num]), bbox_inches='tight')
 
     plt.show()    
     
@@ -996,13 +1008,14 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
             ccdnum = detector_nomenclature[ccds[i]]
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
-            name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_trial_w_o_stellar').replace('.', '_')
-            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=False, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True)
+            name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]])).replace('.', '_')
+            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, nstars=100, save_lc_stars=True)
             Dict['{}_{}'.format(field, ccds[i])] = df
-            ccds_used.append(ccds)
+            ccds_used.append(ccds[i])
 
         except:
             pass
+    
     ccds_used = np.unique(ccds_used)
     norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
     c_m = matplotlib.cm.plasma
@@ -1022,7 +1035,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
         plt.title('Difference flux + template - median', fontsize=15)
         i+=1
     plt.legend()
-    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/All_ccds_diference_and_template.png'.format(field))
+    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/{}_all_ccds_diference_and_template.png'.format(field,field))
     plt.show()
 
     plt.figure(figsize=(10,6))
@@ -1035,7 +1048,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
         plt.title('Difference flux', fontsize=15)
         i+=1
     plt.legend()
-    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/All_ccds_difference.png'.format(field))
+    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/{}_all_ccds_difference.png'.format(field, field))
     plt.show()
     
     
@@ -1059,6 +1072,8 @@ def all_ccds_Jorge(field, ccds):
     s_m.set_array([])
     T = np.linspace(0,27,len(ccds))
     i=0
+    ccds = np.unique(ccds)
+
     for i in range(len(ccds)):
         SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv'
         sfx = 'flx'
@@ -1069,7 +1084,7 @@ def all_ccds_Jorge(field, ccds):
         i+=1
     plt.legend()
     plt.title('Aperture Fotometry by Martinez-Palomera')
-    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/All_ccds_Jorge_aperture.png'.format(field))
+    plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/{}_all_ccds_Jorge_aperture.png'.format(field, field))
     plt.show()
     
     return
@@ -1199,18 +1214,17 @@ def Find_stars(ra, dec, width, height, n, seed=[True, 200]):
     return table
 
 
-def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
+def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n, well_subtracted=True):
     """
     Finds n stars in a rectangular aperture, which I intend to be the ccd size.
     
     Inputs:
     ------
-    ra : [float] right ascention position in degrees
-    dec : [float] declination position in degrees 
-    width : [float] width of rectangular aperture in arcsec 
-    height : [float] height of reclangular aperture in arcsec
+    repo :
+    visit : 
+    ccdnum : 
+    collection_diff : 
     n : [int] number of stars we wan to find
-    seed : [tuple (bool, int)] if bool is True, we set a random seed equal to int
     
     Outputs:
     -------
@@ -1243,8 +1257,8 @@ def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
     x_pix_stars = np.array(x_pix_stars)
     y_pix_stars = np.array(y_pix_stars)
 
-    pdimy = 2048 
-    pdimx = 4096 
+    pdimx = 2048 
+    pdimy = 4096 
 
 
     sources = pd.merge(src_pandas, diaSrcTable_pandas, on='src_id', how='outer')
@@ -1278,15 +1292,15 @@ def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n):
 
         inter = np.intersect1d(j,k)
 
-        if np.fabs(pdimy - y_star) <= 100 or np.fabs(pdimx - x_star) <=100 or x_star <=100 or y_star <= 100:
+        if np.fabs(pdimy - y_star) <= 100 or np.fabs(pdimx - x_star) <= 100 or x_star <=100 or y_star <= 100:
             print('this star is to close to the edges, discarded')
             i+=1
             continue
         
-        if len(inter)>0:
+        if len(inter)>0 and well_subtracted:
             print('near pixel xpix {} ypix {}'.format(x_pix_stars[inter], y_pix_stars[inter]))
             print('a bad subtracted star is identified, discarded')
-            Calib_and_Diff_plot_cropped(repo, collection_diff, collection_diff, ra, dec, [visit], ccdnum, s=10)
+            #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_diff, ra, dec, [visit], ccdnum, s=10)
             print('x_pix {} y_pix {}'.format(x_star , y_star))
             i+=1
             continue
