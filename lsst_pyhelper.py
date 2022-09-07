@@ -913,7 +913,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 f, f_err, fg = sep.sum_circle(data, [x_star], [y_star], star_aperture, var = np.asarray(diffexp.variance.array, dtype='float'))
                 ft, ft_err, ftg = sep.sum_circle(data_coadd, [x_star], [y_star], star_aperture, var = np.asarray(coadd.variance.array, dtype='float'))
                 
-                if (f>2000 or f < -2000):
+                if (np.fabs(f)>2000  or np.fabs(ft+f)>30000):
                     saturated_stars.append(i+1)
                     
                 flux_stars_and_errors.append(f[0])
