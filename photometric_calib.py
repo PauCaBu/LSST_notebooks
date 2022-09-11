@@ -243,16 +243,17 @@ def mag_stars_calculation(repo, visit, ccdnum, collection_diff):
     """
     pixel_to_arcsec = 0.2626 #arcsec/pixel 
     butler = Butler(repo)
-    df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag', 'src_catalog_LSST_mag', 'calculated_byme_flx', 'calculated_byme_mag','seeing','m_inst', 'airmass', 'expoTime'])
+    df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag', 'src_catalog_LSST_mag', 'calculated_byme_flx','calculated_byme_flx_coadd', 'calculated_byme_mag','seeing','m_inst', 'airmass', 'expoTime'])
     src = butler.get('src',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
     table = src.asAstropy()
     mask = (table['calib_photometry_used'] == True) & (table['calib_psf_used']==True)
     phot_table = table[mask]
     phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra']).to(u.degree)
     phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec']).to(u.degree)
-    #calexp = butler.get('calexp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
-    calexp = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
-    
+    calexp = butler.get('calexp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    coadd = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+
+
     phot_calexp = calexp.getPhotoCalib()
     
     for i in range(len(phot_table)):
@@ -293,6 +294,108 @@ def mag_stars_calculation(repo, visit, ccdnum, collection_diff):
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(calexp.variance.array, dtype='float'))
         calc_flx = flux[0]*1.05
         calc_mag = phot_calexp.instFluxToMagnitude(calc_flx, obj_pos_2d)
+
+        # calculating in the coadd image
+        data_coadd = np.asarray(coadd.image.array, dtype='float')
+        flux_coadd, fluxerr_coadd, flagc = sep.sum_circle(data_coadd, [x_pix], [y_pix], r=r, var = np.asarray(coadd.variance.array, dtype='float'))
+        calc_flx_coadd = flux_coadd[0]*1.05
+
+        # m_instrumental 
+        expoTime = float(calexp.getInfo().getVisitInfo().exposureTime)
+        m_instrumental = -2.5*np.log10((flux[0]*1.05)/expoTime)
+        airmass = float(calexp.getInfo().getVisitInfo().boresightAirmass)
+        
+        df.loc[len(df)] = [ra_star, dec_star, ps1_mag, src_mag, calc_flx, calc_flx_coadd, calc_mag, seeing, m_instrumental, airmass, expoTime]
+    
+    # doing the photometric calibration:
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.dropna(subset=['Panstarss_dr1_mag', 'm_inst'])
+    
+    #X = [df.m_inst, df.airmass]
+    #alpha = curve_fit(Calibration, xdata = X, ydata = df.Panstarss_dr1_mag)[0]
+    #print(alpha)
+    #m_calib = Calibration(X, alpha[0], alpha[1])
+    
+    #df['m_calib'] = m_calib
+    #df['Z_value'] = alpha[0]
+    #df['k_value'] = alpha[1]
+    df['Panstarss_counts'] = FromMagToCounts(np.array(df['Panstarss_dr1_mag']))
+    pan_counts = np.mean(np.array(df.Panstarss_counts))
+    strs_counts = np.mean(np.array(df.calculated_byme_flx))
+    strs_counts_coadd = np.mean(np.array(df.calculated_byme_flx_coadd))
+    print('stars counts in calexp: ', strs_counts)
+    print('stars counts in coadd: ',strs_counts_coadd)
+    
+    return {'DataFrame' : df, 'panstarss_counts': pan_counts, 'calcbyme_counts' : strs_counts, 'calcbyme_counts_coadd' : strs_counts_coadd}
+
+def mag_stars_calculation2(repo, visit, ccdnum, collection_diff):
+    """
+    Calculates the magnitude of the stars used for photometric calibration and PSF measurement
+    using the coadd image 
+    
+    Input:
+    -----
+    repo : [str] 
+    visit : [int] 
+    ccdnum : [int] 
+    collection_diff : [int]
+    
+    Output: 
+    ------
+    df : [pd.DataFrame]
+    
+    """
+    pixel_to_arcsec = 0.2626 #arcsec/pixel 
+    butler = Butler(repo)
+    df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag', 'src_catalog_LSST_mag', 'calculated_byme_flx', 'calculated_byme_mag','seeing','m_inst', 'airmass', 'expoTime'])
+    src = butler.get('src',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    table = src.asAstropy()
+    mask = (table['calib_photometry_used'] == True) & (table['calib_psf_used']==True)
+    phot_table = table[mask]
+    phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra']).to(u.degree)
+    phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec']).to(u.degree)
+    calexp = butler.get('calexp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    coadd = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    phot_calexp = calexp.getPhotoCalib()
+    
+    for i in range(len(phot_table)):
+        ra_star = phot_table[i]['coord_ra_ddegrees']
+        dec_star = phot_table[i]['coord_dec_ddegrees']
+        
+        # from src catalog of LSST Science pipelines 
+        obj_pos_2d = lsst.geom.Point2D(ra_star, dec_star)
+        flux_star_src = phot_table['base_PsfFlux_instFlux'][i]
+        src_mag = phot_calexp.instFluxToMagnitude(flux_star_src, obj_pos_2d)
+
+        # from Panstarss catalog
+        constraints = {'nDetections.gt':1}
+        results = ps1cone(ra_star, dec_star, 0.00028, **constraints)
+        tab = ascii.read(results)
+        # improve the format
+        for filter in 'grizy':
+            col = filter+'MeanPSFMag'
+            try:
+                tab[col].format = ".4f"
+                tab[col][tab[col] == -999.0] = np.nan
+            except KeyError:
+                print("{} not found".format(col))
+        ps1_mag = float(tab['gMeanPSFMag'][0])
+        
+        # calculated by me using Source Extractor 
+        obj_pos_lsst = lsst.geom.SpherePoint(ra_star, dec_star, lsst.geom.degrees)
+        obj_pos_2d = lsst.geom.Point2D(ra_star, dec_star)
+        wcs = calexp.getWcs()
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        data = np.asarray(coadd.image.array, dtype='float')
+        psf = calexp.getPsf()
+        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec
+        pixel_to_arcsec = 0.2626 #arcsec/pixel 
+        r = seeing*2
+        r/=pixel_to_arcsec
+        flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(coadd.variance.array, dtype='float'))
+        calc_flx = flux[0]*1.05
+        calc_mag = phot_calexp.instFluxToMagnitude(calc_flx, obj_pos_2d)
         
         # m_instrumental 
         expoTime = float(calexp.getInfo().getVisitInfo().exposureTime)
@@ -318,6 +421,103 @@ def mag_stars_calculation(repo, visit, ccdnum, collection_diff):
     strs_counts = np.mean(np.array(df.calculated_byme_flx))
     
     return {'DataFrame' : df, 'panstarss_counts': pan_counts, 'calcbyme_counts' : strs_counts}
+
+
+def stars_scaling_calculation(stars_table, repo, visit, ccdnum, collection_diff):
+    """
+    Calculates the magnitude of the stars used for photometric calibration and PSF measurement. 
+    
+    Input:
+    -----
+    repo : [str] 
+    visit : [int] 
+    ccdnum : [int] 
+    collection_diff : [int]
+    
+    Output: 
+    ------
+    df : [pd.DataFrame]
+    
+    """
+    pixel_to_arcsec = 0.2626 #arcsec/pixel 
+    butler = Butler(repo)
+    df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag', 'calculated_byme_flx', 'calculated_byme_mag','seeing','m_inst', 'airmass', 'expoTime'])
+    src = butler.get('src',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    #table = src.asAstropy()
+    #mask = (table['calib_photometry_used'] == True) & (table['calib_psf_used']==True)
+    #phot_table = table[mask]
+    ra_icrs = np.array(stars_table['RA_ICRS'], dtype=float)#phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra']).to(u.degree)
+    dec_icrs = np.array(stars_table['DE_ICRS'], dtype=float) #phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec']).to(u.degree)
+    calexp = butler.get('calexp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    coadd = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    
+    phot_calexp = calexp.getPhotoCalib()
+    
+    for i in range(len(stars_table)):
+        ra_star = ra_icrs[i]#['coord_ra_ddegrees']
+        dec_star = dec_icrs[i]#['coord_dec_ddegrees']
+        
+        # from src catalog of LSST Science pipelines 
+        #obj_pos_2d = lsst.geom.Point2D(ra_star, dec_star)
+        #flux_star_src = phot_table['base_PsfFlux_instFlux'][i]
+        #src_mag = phot_calexp.instFluxToMagnitude(flux_star_src, obj_pos_2d)
+
+        # from Panstarss catalog
+        constraints = {'nDetections.gt':1}
+        results = ps1cone(ra_star, dec_star, 0.00028, **constraints)
+        tab = ascii.read(results)
+        # improve the format
+        for filter in 'grizy':
+            col = filter+'MeanPSFMag'
+            try:
+                tab[col].format = ".4f"
+                tab[col][tab[col] == -999.0] = np.nan
+            except KeyError:
+                print("{} not found".format(col))
+        ps1_mag = float(tab['gMeanPSFMag'][0])
+        
+        # calculated by me using Source Extractor 
+        obj_pos_lsst = lsst.geom.SpherePoint(ra_star, dec_star, lsst.geom.degrees)
+        obj_pos_2d = lsst.geom.Point2D(ra_star, dec_star)
+        wcs = calexp.getWcs()
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        data = np.asarray(coadd.image.array, dtype='float')
+        psf = calexp.getPsf()
+        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec
+        pixel_to_arcsec = 0.2626 #arcsec/pixel 
+        r = seeing*2
+        r/=pixel_to_arcsec
+        flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(calexp.variance.array, dtype='float'))
+        calc_flx = flux[0]*1.05
+        calc_mag = phot_calexp.instFluxToMagnitude(calc_flx, obj_pos_2d)
+        
+        # m_instrumental 
+        expoTime = float(calexp.getInfo().getVisitInfo().exposureTime)
+        m_instrumental = -2.5*np.log10((flux[0]*1.05)/expoTime)
+        airmass = float(calexp.getInfo().getVisitInfo().boresightAirmass)
+        
+        df.loc[len(df)] = [ra_star, dec_star, ps1_mag, calc_flx, calc_mag, seeing, m_instrumental, airmass, expoTime]
+    
+    # doing the photometric calibration:
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.dropna(subset=['Panstarss_dr1_mag', 'm_inst'])
+    
+    #X = [df.m_inst, df.airmass]
+    #alpha = curve_fit(Calibration, xdata = X, ydata = df.Panstarss_dr1_mag)[0]
+    #print(alpha)
+    #m_calib = Calibration(X, alpha[0], alpha[1])
+    
+    #df['m_calib'] = m_calib
+    #df['Z_value'] = alpha[0]
+    #df['k_value'] = alpha[1]
+    df['Panstarss_counts'] = FromMagToCounts(np.array(df['Panstarss_dr1_mag']))
+    pan_counts = np.mean(np.array(df.Panstarss_counts))
+    strs_counts = np.mean(np.array(df.calculated_byme_flx))
+    
+    return {'DataFrame' : df, 'panstarss_counts': pan_counts, 'calcbyme_counts' : strs_counts}
+
+
 
 def Calibration(x, Z, k):
     """
@@ -366,5 +566,9 @@ def MagAtOneCountFlux(repo, visit, ccdnum, collection_diff):
     print('Using {} stars for photometric calibration'.format(nstars))
     return m_calib[0]
 
-def FromMagToCounts(mag, magzero=25):
+def FromMagToCounts(mag, magzero=24.56):
+    '''
+    Returns flux counts 
+    Mag zero from g band of panstarss : https://iopscience.iop.org/article/10.1088/0004-637X/750/2/99
+    '''
     return 10**(-0.4*(mag - magzero))

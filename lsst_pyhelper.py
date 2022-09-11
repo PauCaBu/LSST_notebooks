@@ -627,6 +627,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     data_for_hist = []
 
     scaling = []
+    scaling_coadd = []
 
     #if collection_coadd != None:
     #    print('Looking at coadd')
@@ -807,10 +808,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         seeing = np.unique(np.array(DF.seeing))[0]
         Seeing.append(seeing)
         alpha_scaling = phot['panstarss_counts']/phot['calcbyme_counts']
+        scale_coadd = phot['calcbyme_counts']/phot['calcbyme_counts_coadd']
         print('alpha scaling: ', alpha_scaling)
         expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
         f_scaling = alpha_scaling * expTime #10**((magzero_firstImage - magzero_image_i)/-2.5)
         scaling.append(f_scaling)
+        scaling_coadd.append(scale_coadd)
         flux_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).value
         fluxerr_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).error
 
@@ -828,8 +831,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         Fluxes_unscaled.append(flux[0] + flux_coadd[0])
         Fluxes_err_unscaled.append(fluxerr[0]+ fluxerr_coadd[0])
 
-        Fluxes.append((flux[0] + flux_coadd[0])*f_scaling) 
-        Fluxes_err.append((fluxerr[0]+ fluxerr_coadd[0])*f_scaling)
+        Fluxes.append((flux[0] + flux_coadd[0]*scale_coadd) * f_scaling) 
+        Fluxes_err.append((fluxerr[0]+ fluxerr_coadd[0]*scale_coadd) * f_scaling)
 
         Fluxes_scaled.append(flux[0]*f_scaling)
         Fluxes_err_scaled.append(fluxerr[0]*f_scaling)
@@ -936,7 +939,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             f_star = np.array(stars['star_{}_f'.format(i+1)])
             f_star_err = np.array(stars['star_{}_ferr'.format(i+1)])
 
-            ft_star = (np.array(stars['star_{}_ft'.format(i+1)]) + f_star) * scaling
+            ft_star = (np.array(stars['star_{}_ft'.format(i+1)])*scaling_coadd + f_star) * scaling
             ft_star_err = np.array(stars['star_{}_fterr'.format(i+1)])
 
             Dates = np.array(stars['dates'])
