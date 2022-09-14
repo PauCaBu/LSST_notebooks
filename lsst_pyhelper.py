@@ -1,4 +1,5 @@
 from platform import mac_ver
+import platform
 from statistics import median
 from lsst.pipe.tasks.imageDifference import ImageDifferenceTask
 from lsst.ip.diffim import ZogyImagePsfMatchTask as zt
@@ -1011,14 +1012,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     plt.show()    
 
-    f, (ax1, ax2, ax3) = plt.subplots(3, 1, gridspec_kw={'height_ratios': [2, 1, 1]},sharex=True, figsize=(10,6))
-
+    #f, (ax1, ax2, ax3) = plt.subplots(3, 1, gridspec_kw={'height_ratios': [2, 1, 1]},sharex=True, figsize=(10,6))
+    plt.figure(figsize=(10,6))
 
 
     if SIBLING!=None:
 
         x, y, yerr = compare_to(SIBLING, sfx='flx', factor=factor)
-        ax1.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
+        platform.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
     if do_zogy:
         zogy = zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r, instrument = 'DECam', plot_diffexp=plot_zogy_stamps, plot_coadd = plot_coadd, cutout=cutout)
@@ -1026,7 +1027,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         z_flux = zogy.flux
         z_ferr = zogy.flux_err
         
-        ax1.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
+        plt.errorbar(zogy.dates, z_flux, yerr=z_ferr, capsize=4, fmt='s', label ='ZOGY Cáceres-Burgos', color='orange', ls ='dotted')
 
     area_source  = np.pi * r**2
     area_annuli = np.pi * (5*r)**2 - np.pi * (2*r)**2 
@@ -1069,10 +1070,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         #plt.errorbar(source_of_interest.dates, source_of_interest.Mg, yerr=source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
         #ax1.plot(source_of_interest.dates, source_of_interest.Mg, label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
-        ax1.errorbar(source_of_interest.dates, mag_diff - np.median(mag_diff), yerr = mag_diff_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude diff]', color='orange', ls ='dotted')
-        ax1.errorbar(source_of_interest.dates, mag_diff_and_temp - np.median(mag_diff_and_temp), yerr = mag_diff_and_temp_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude diff + temp]', color='blue', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, mag_diff - np.median(mag_diff), yerr = mag_diff_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude diff]', color='orange', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, mag_diff_and_temp - np.median(mag_diff_and_temp), yerr = mag_diff_and_temp_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude diff + temp]', color='blue', ls ='dotted')
 
-        ax1.ylabel('Excess magnitude', fontsize=15)
+        plt.ylabel('Excess magnitude', fontsize=15)
     
     else: 
         #ax1.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
@@ -1082,34 +1083,33 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted') 
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_cal - np.median(source_of_interest.flux_cal), yerr=source_of_interest.flux_err_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos [mock aperture photometry scaled]', color='red', ls ='dotted')
         
-        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd), yerr = source_of_interest.fluxerr_nJy , capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
-        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_nJy, yerr=source_of_interest.fluxerr_nJy, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd), yerr = source_of_interest.fluxerr_nJy , capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy, yerr=source_of_interest.fluxerr_nJy, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
 
         
-        ax1.set_ylabel('Excess flux nJy', fontsize=15 )
+        plt.set_ylabel('Excess flux nJy', fontsize=15 )
     #plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
-    ax1.legend(ncol=2)
-    ax1.axhline(0, color='grey', linestyle='--')
+    plt.legend(ncol=2)
+    plt.axhline(0, color='grey', linestyle='--')
     #ax2 = plt.subplot(212)
     
     if SIBLING!=None:
-        ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
-        ax2.legend()
-        ax2.axhline(0, color='grey', linestyle='--')
+        #ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
+        #ax2.legend()
+        #ax2.axhline(0, color='grey', linestyle='--')
 
-        for i in range(len(source_of_interest.dates)):
-            ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
+        #for i in range(len(source_of_interest.dates)):
+        #    ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
 
 
-    ax3.set_xlabel('MJD', fontsize=15)
+    #ax3.set_xlabel('MJD', fontsize=15)
     
     
-    ax1.set_title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
-    #ax3 = plt.subplot(222)
-    ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli, yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
-    ax3.set_ylabel('ADU', fontsize=12)
+    #ax1.set_title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
+    #ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli, yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
+    #ax3.set_ylabel('ADU', fontsize=12)
     #ax3.axhline(0, color='grey', linestyle='--')
-    f.subplots_adjust(hspace=0)
+    #f.subplots_adjust(hspace=0)
     plt.legend(ncol=5)
     
     if sparse_obs:
