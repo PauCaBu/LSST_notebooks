@@ -604,6 +604,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     fluxerr_coadd=0
     #fluxes_cal = []
     #fluxes_err_cal = []
+
+    Fluxes_njsky = []
+    Fluxeserr_njsky = []
+
+    Fluxes_njsky_coadd = []
+    Fluxeserr_njsky_coadd = []
     
     stars = pd.DataFrame()
     
@@ -766,6 +772,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], r, var = np.asarray(calexp.variance.array, dtype='float'))
         flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix_coadd], [y_pix_coadd], r, var = np.asarray(coadd.variance.array, dtype='float'))
         flux_coadd_an, fluxerr_coadd_an, flag_coadd = sep.sum_circann(data_coadd, [x_pix_coadd], [y_pix_coadd], r*2, r*5, var = np.asarray(coadd.variance.array, dtype='float'))
+        
 
         print('Coords: ra = {}, dec = {}'.format(ra,dec))
         print('visit : {}'.format(visits[i]))
@@ -778,6 +785,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         photocalib = diffexp.getPhotoCalib()
         photocalib_cal = calexp.getPhotoCalib()
         photocalib_coadd = coadd.getPhotoCalib()
+
+        flux_physical = photocalib.instFluxToNanojansky(flux, fluxerr, obj_pos_2d)
+        print(flux_physical)
+        flux_jsky = flux_physical.value#['value']
+        fluxerr_jsky = flux_physical.error#['error'] #photocalib.instFluxToNanojansky(fluxerr, obj_pos_2d)
+
+        flux_physical_coadd = photocalib_coadd.instFluxToNanojansky(flux, fluxerr, obj_pos_2d)
+        flux_jsky_coadd = flux_physical_coadd.value#['value'] #photocalib_coadd.instFluxToNanojansky(fluxerr_coadd, obj_pos_2d)
+        fluxerr_jsky_coadd = flux_physical_coadd.error#['error'] #photocalib_coadd.instFluxToNanojansky(fluxerr_coadd, obj_pos_2d)
+
 
         #zero_set_aux *= photocalib_cal.instFluxToNanojansky(flux[0], obj_pos_2d)/coadd_photocalib.instFluxToNanojansky(flux[0], obj_pos_2d)
         #zero_set_aux += photocalib_cal.getInstFluxAtZeroMagnitude()
@@ -814,8 +831,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         f_scaling = alpha_scaling * expTime #10**((magzero_firstImage - magzero_image_i)/-2.5)
         scaling.append(f_scaling)
         scaling_coadd.append(scale_coadd)
-        flux_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).value
-        fluxerr_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).error
+
+        #flux_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).value
+        #fluxerr_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).error
 
         print('flux before scaling: ', flux[0])
         print('f scaling : ', f_scaling)
@@ -843,6 +861,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         Fluxes_annuli.append((flux_an[0]+flux_coadd_an[0])*f_scaling)
         Fluxeserr_annuli.append((fluxerr_an[0]+fluxerr_coadd_an[0])*f_scaling)
 
+        Fluxes_njsky.append(flux_jsky)
+        Fluxeserr_njsky.append(fluxerr_jsky)
+
+        Fluxes_njsky_coadd.append(flux_jsky_coadd)
+        Fluxeserr_njsky_coadd.append(fluxerr_jsky_coadd)
+
+
 
         # Adding photometry calculation step: 
 
@@ -864,16 +889,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('------------------------------------------')
 
     if do_lc_stars == True:
-        
-        
         py = 2048 - 100
         px = 4096 - 100
         width = px*pixel_to_arcsec
         height = py*pixel_to_arcsec
         print('width: {} , height : {}'.format(width, height))
-        stars_table = Find_stars_from_LSST_to_PS1(repo, visits_aux[0], ccd_num, collection_diff, n=nstars, well_subtracted=well_subtracted)
+
+        stars_table = Find_stars(ra, dec, width, height, nstars, seed=[True, 200])
+        #Find_stars_from_LSST_to_PS1(repo, visits_aux[0], ccd_num, collection_diff, n=nstars, well_subtracted=well_subtracted)
         print(stars_table)
-        if stars_table == None:
+        if len(stars_table) == 0: # or stars_table==None
             print('No stars well subtracted were found :(')
             return
         RA = np.array(stars_table['RA_ICRS'], dtype=float)
@@ -887,7 +912,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         for j in range(len(visits_aux)):
             diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[j], detector=ccd_num , collections=collection_diff, instrument='DECam')
             coadd = butler.get('goodSeeingDiff_matchedExp',visit=visits_aux[j], detector=ccd_num , collections=collection_diff, instrument='DECam')
-
+            photocalib = diffexp.getPhotoCalib()
+            photocalib_coadd = coadd.getPhotoCalib()
             wcs = diffexp.getWcs()
             data = np.asarray(diffexp.image.array, dtype='float')            
             data_coadd = np.asarray(coadd.image.array, dtype='float')            
@@ -900,6 +926,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 
                 ra_star = RA[i]
                 dec_star = DEC[i]
+                obj_pos_2d_star = lsst.geom.Point2D(ra_star, dec_star)
                 print('⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂ (◕ᴥ◕) -. * STAR {} *.- (◕ᴥ◕) ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑ '.format(i+1))
                 
                 obj_pos_lsst_star = lsst.geom.SpherePoint(ra_star, dec_star, lsst.geom.degrees)
@@ -918,11 +945,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 
                 if (np.fabs(f)>2000  or np.fabs(ft+f)>30000):
                     saturated_stars.append(i+1)
-                    
-                flux_stars_and_errors.append(f[0])
-                flux_stars_and_errors.append(f_err[0])
-                flux_stars_and_errors.append(ft[0])
-                flux_stars_and_errors.append(ft_err[0])
+                
+
+                f_star_physical = photocalib.instFluxToNanojansky(f[0], f_err[0], obj_pos_2d_star)
+                ft_star_physical = photocalib_coadd.instFluxToNanojansky(ft[0], ft_err[0], obj_pos_2d_star)
+
+                flux_stars_and_errors.append(f_star_physical.value)
+                flux_stars_and_errors.append(f_star_physical.error)
+                flux_stars_and_errors.append(ft_star_physical.value)
+                flux_stars_and_errors.append(ft_star_physical.error)
                 
                 print('Flux star: {} Error flux: {}'.format(f[0] + ft[0], f_err[0]))
                 
@@ -935,13 +966,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         stars['dates'] = dates - min(dates)
         stars = stars.sort_values(by='dates')
         for i in range(nstars):
-
             f_star = np.array(stars['star_{}_f'.format(i+1)])
             f_star_err = np.array(stars['star_{}_ferr'.format(i+1)])
-
-            ft_star = (np.array(stars['star_{}_ft'.format(i+1)])*scaling_coadd + f_star) * scaling
+            
+            ft_star = np.array(stars['star_{}_ft'.format(i+1)])#*scaling_coadd + f_star) * scaling
             ft_star_err = np.array(stars['star_{}_fterr'.format(i+1)])
-
+            
             Dates = np.array(stars['dates'])
             #norm = 0#np.mean(f_star)
             #std = np.std(f_star)
@@ -957,7 +987,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             T = np.linspace(0,27,nstars)
             if len(j)==0:
                 #plt.errorbar(Dates, f_star, yerr= f_star_err, capsize=4, fmt='*-', label = 'star {}'.format(i+1), color = s_m.to_rgba(T[i]), alpha=0.8)
-                plt.errorbar(Dates, ft_star - np.median(ft_star), yerr= ft_star_err, capsize=4, fmt='.-', label = 'star {}'.format(i+1), color = s_m.to_rgba(T[i]), alpha=0.8)
+                plt.errorbar(Dates, ft_star + f_star - np.median(ft_star + f_star), yerr= f_star_err, capsize=4, fmt='.-', label = 'star {}'.format(i+1), color = s_m.to_rgba(T[i]), alpha=0.8)
                 
         if well_subtracted:
             plt.title('Well subtracted stars LCs -Difference flux- from {} and {} with Aperture {}"'.format(collection_diff[9:], ccd_name[ccd_num], star_aperture*pixel_to_arcsec)) 
@@ -1005,6 +1035,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled) # unscaled error flux template + difference 
     source_of_interest['flux_annuli'] = np.array(Fluxes_annuli) #* area_source/area_annuli # flux of annuli template + difference 
     source_of_interest['flux_err_annuli'] = np.array(Fluxeserr_annuli) # error flux of annuli template + difference 
+    source_of_interest['flux_nJy'] = np.array(Fluxes_njsky)
+    source_of_interest['fluxerr_nJy'] = np.array(Fluxeserr_njsky) 
+    source_of_interest['flux_nJy_coadd'] = np.array(Fluxes_njsky_coadd)
+    source_of_interest['fluxerr_nJy_coadd'] = np.array(Fluxeserr_njsky_coadd)
+    
     #source_of_interest['flux_annuli_subtracted_to_median'] =  source_of_interest['flux_annuli'] - np.median(source_of_interest['flux_annuli']) #/source_of_interest['flux_annuli_norm']
     #source_of_interest['flux_annuli_norm'] = np.array(Fluxes_annuli)/np.array(Fluxes_annuli).sum()
     #source_of_interest['flux_corrected'] = source_of_interest['flux'] - source_of_interest['flux_annuli_subtracted_to_median'] #/source_of_interest['flux_annuli_norm'] 
@@ -1021,17 +1056,32 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest = source_of_interest.sort_values(by='dates')
 
     if sfx=='mag':
+        mag_diff = [-2.5*np.log10(f) for f in source_of_interest.flux_nJy]
+        mag_diff_err = [-2.5*np.log10(f) for f in source_of_interest.fluxerr_nJy]
+
+        mag_diff_and_temp = [-2.5*np.log10(f) for f in (source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd)]
+        mag_diff_and_temp_err = [-2.5*np.log10(f) for f in (source_of_interest.fluxerr_nJy**2 + source_of_interest.fluxerr_nJy_coadd**2)**1/2]
+        
         #plt.errorbar(source_of_interest.dates, source_of_interest.Mg, yerr=source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
-        ax1.plot(source_of_interest.dates, source_of_interest.Mg, label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
+        #ax1.plot(source_of_interest.dates, source_of_interest.Mg, label ='AL Cáceres-Burgos [magnitude]', color='orange', ls ='dotted')
+        ax1.errorbar(source_of_interest.dates, mag_diff - np.median(mag_diff), yerr = mag_diff_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude diff]', color='orange', ls ='dotted')
+        ax1.errorbar(source_of_interest.dates, mag_diff_and_temp - np.median(mag_diff), yerr = mag_diff_and_temp_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [magnitude diff + temp]', color='blue', ls ='dotted')
+
         ax1.ylabel('Excess magnitude', fontsize=15)
     
     else: 
-        ax1.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
-        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
-        #plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted')
-        
+        #ax1.errorbar(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux), yerr=source_of_interest.flux_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
+        #ax1.errorbar(source_of_interest.dates, source_of_interest.flux_scaled, yerr=source_of_interest.flux_err_scaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
+       
+       
+        #plt.errorbar(source_of_interest.dates, source_of_interest.flux_unscaled - np.median(source_of_interest.flux_unscaled), yerr=source_of_interest.flux_err_unscaled, capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux unscaled]', color='#c77f00', ls ='dotted') 
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_cal - np.median(source_of_interest.flux_cal), yerr=source_of_interest.flux_err_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos [mock aperture photometry scaled]', color='red', ls ='dotted')
-        ax1.set_ylabel('Excess flux in arbitrary units', fontsize=15 )
+        
+        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd), yerr = source_of_interest.fluxerr_nJy , capsize=4, fmt='s', label ='AL Cáceres-Burgos [+template flux scaled]', color='#0827F5', ls ='dotted')
+        ax1.errorbar(source_of_interest.dates, source_of_interest.flux_nJy, yerr=source_of_interest.fluxerr_nJy, capsize=4, fmt='s', label ='AL Cáceres-Burgos [scaled]', color='orange', ls ='dotted')
+
+        
+        ax1.set_ylabel('Excess flux nJy', fontsize=15 )
     #plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
     ax1.legend(ncol=2)
     ax1.axhline(0, color='grey', linestyle='--')
@@ -1061,10 +1111,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.xscale('log')
 
     if save and save_as=='':
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/ra_{}_dec_{}.pdf'.format(ra,dec), bbox_inches='tight')
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/ra_{}_dec_{}_{}.pdf'.format(ra,dec,sfx), bbox_inches='tight')
     
     if save and save_as!='':
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}.pdf'.format(save_as), bbox_inches='tight')
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}_{}.pdf'.format(save_as, sfx), bbox_inches='tight')
     
     plt.show()
     
@@ -1122,9 +1172,10 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd):
             ccdnum = detector_nomenclature[ccds[i]]
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
-            name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]])).replace('.', '_')
-            df = get_light_curve(repo, visits,  collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, nstars=100, save_lc_stars=True)
+            name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_calibLsst').replace('.', '_')
+            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r=1, factor=0.75, save=True, save_as = folder + name_file, title=title, show_stamps=False, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=False, do_lc_stars=True, save_lc_stars=True)
             if df == None:
+                print('couldnt retrieve the light curve for that source in ra {} de {}, field {} {}'.format(ra, dec, field, ccds[i]))
                 continue
             Dict['{}_{}'.format(field, ccds[i])] = df
             ccds_used.append(ccds[i])
