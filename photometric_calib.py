@@ -572,3 +572,13 @@ def FromMagToCounts(mag, magzero=24.56):
     Mag zero from g band of panstarss : https://iopscience.iop.org/article/10.1088/0004-637X/750/2/99
     '''
     return 10**(-0.4*(mag - magzero))
+
+def FluxToMag(flux, fluxerr, magzero=24.3):
+    mag = -2.5*np.log10(flux) + magzero
+    magerr = np.fabs(-2.5 * fluxerr/(flux * np.log(10)))
+    return mag, magerr
+
+def FluxJyToABMag(flux, fluxerr):
+    magab = -2.5*np.log10(flux) + 8.9
+    magab_err = np.fabs(-2.5 * fluxerr/(flux * np.log(10)))
+    return magab, magab_err
