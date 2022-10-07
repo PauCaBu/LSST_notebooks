@@ -1089,7 +1089,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec 
 
             flux_stars_and_errors = []
-            factor_star = 2.5
+            factor_star = 1 #2.5
             star_aperture = seeing * factor_star #2 # arcsec 
             star_aperture/=pixel_to_arcsec # transform it to pixel values 
 
@@ -1147,7 +1147,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 print('꒰✩ ’ω`ૢ✩꒱ -------------------- ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂')
             
             stars.loc[len(stars.index)] = flux_stars_and_errors
-
+        field = collection_diff[13:24]
         #here we plot the stars vs panstarss magnitude:
         norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
         c_m = matplotlib.cm.plasma
@@ -1164,20 +1164,52 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
         plt.xlabel('PS1 magnitudes', fontsize=17)
         plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
-        plt.plot(ps1_info.gmag, ps1_info.g_r*1/8 , '*', color='green', markersize=10, alpha=0.5, linestyle='--', label='g-r color')
+        color_term = 25e-3*10
+        #plt.plot(ps1_info.gmag, ps1_info.g_r*color_term , '*', color='green', markersize=10, alpha=0.5, linestyle='--', label='g-r * color term')
+        plt.plot(ps1_info.gmag, ps1_info.g_i*color_term , '*', color='black', markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')
         
         plt.ylabel('Magnitude - PS1 magnitude', fontsize=17)
-        plt.legend()
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.title('Difference between magnitudes', fontsize=17)
+        plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
         plt.show()
 
         
-        plt.figure(figsize=(10,6))
-        plt.plot(ps1_info.gmag, ps1_info.g_r , '*', color='blue', markersize=10, alpha=0.5, linestyle='--')
+        plt.figure(figsize=(10,10))
+        for i in range(len(visits_aux)):
+            plt.plot(np.array(ps1_info.gmag) , np.sort(np.array(stars_table['base_PsfFlux_mag_x_{}'.format(visits_aux[i])])) - ps1_info.g_i*color_term - np.array(ps1_info.gmag), '*', label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
+            #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
         plt.xlabel('PS1 magnitudes', fontsize=17)
-        #plt.plot(np.sort(np.array(ps1_mags.ps1_mag)), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag),'*', markersize=10, label='PS1', color='black', linestyle='--')
-        plt.ylabel('color g-r', fontsize=17)
-        plt.title('PS1 magnitude vs. color', fontsize=17)
+        plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
+        
+        #color_term = 20e-3
+        #plt.plot(ps1_info.gmag, ps1_info.g_r*color_term , '*', color='green', markersize=10, alpha=0.5, linestyle='--', label='g-r * color term')
+        #plt.plot(ps1_info.gmag, ps1_info.g_i*color_term , '*', color='black', markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')
+        
+        plt.ylabel('Magnitude - PS1 magnitude', fontsize=17)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.title('Difference between magnitudes - color uncorrected', fontsize=17)
+        #plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
+        plt.show()
+
+        #here we plot the stars vs panstarss magnitude:
+        norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
+        c_m = matplotlib.cm.plasma
+
+        # create a ScalarMappable and initialize a data structure
+        s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        s_m.set_array([])
+        T = np.linspace(0,27,nstars)
+
+        plt.figure(figsize=(10,10))
+        for j in range(len(stars_table)):
+            columns = ['base_PsfFlux_mag_x_{}'.format(v) for v in visits_aux]
+            flux_of_star_j = np.array(stars_table.loc[j][columns])
+            plt.plot(dates_aux, flux_of_star_j - np.median(flux_of_star_j), '*',color=s_m.to_rgba(T[i]), linestyle='--', label='star {}'.format(j+1))
+        plt.xlabel('MJD', fontsize=17)
+        plt.ylabel('magnitude of LSST - median')
+        plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
         plt.figure(figsize=(10,10))
@@ -1818,7 +1850,8 @@ def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
     """
     big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff)
     phot_table = big_table.dropna()
-
+    phot_table = phot_table.reset_index()
+    #phot_table = phot_table.drop('index')
     return phot_table
 
 def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n, well_subtracted=True, verbose=False):
