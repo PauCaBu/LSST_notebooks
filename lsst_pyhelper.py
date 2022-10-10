@@ -1092,17 +1092,23 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         if len(stars_table) == 0: # or stars_table==None
             print('No stars well subtracted were found :(')
             pass
+        
+        #nstars = len(stars_table)
+        np.random.seed(436862)
+        columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1), 'star_{}_ft'.format(i+1), 'star_{}_fterr'.format(i+1), 'star_{}_mag'.format(i+1), 'star_{}_magErr'.format(i+1), 'star_{}_magt'.format(i+1), 'star_{}_magtErr'.format(i+1)] for i in range(nstars)]))
+        print('available stars that satisfy criteria: ', len(stars_table))
+        stars = pd.DataFrame(columns=columns_stars)
+        stars_table = stars_table.sample(n=nstars)
+        stars_table = stars_table.reset_index()
+        print('number of stars we will revise: ', len(stars_table))
+
         ra_s = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits[0])])
         dec_s = np.array(stars_table['coord_dec_ddegrees_{}'.format(visits[0])])
 
         ps1_mags = pc.get_mags_from_catalog_ps1(ra_s, dec_s)        
         ps1_info = pc.get_from_catalog_ps1(ra_s, dec_s)
         ps1_info = ps1_info.sort_values('gmag')
-        nstars = len(stars_table)
 
-        columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1), 'star_{}_ft'.format(i+1), 'star_{}_fterr'.format(i+1), 'star_{}_mag'.format(i+1), 'star_{}_magErr'.format(i+1), 'star_{}_magt'.format(i+1), 'star_{}_magtErr'.format(i+1)] for i in range(nstars)]))
-        stars = pd.DataFrame(columns=columns_stars)
-        
         for j in range(len(visits_aux)):
             RA = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits_aux[j])], dtype=float)
             DEC = np.array(stars_table['coord_dec_ddegrees_{}'.format(visits_aux[j])], dtype=float)
@@ -1188,16 +1194,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.show()
         plt.figure(figsize=(10,10))
-        stars_table = stars_table.sort_values('base_PsfFlux_mag_x_{}'.format(visits_aux[0]))
+        stars_table = stars_table.sort_values('base_PsfFlux_mag_{}'.format(visits_aux[0]))
         for i in range(len(visits_aux)):
-            plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_x_{}'.format(visits_aux[i])]) - np.array((ps1_info.gmag)), yerr= np.array(stars_table['base_PsfFlux_magErr_x_{}'.format(visits_aux[i])]), fmt='*', label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
+            plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])]) - np.array((ps1_info.gmag)), yerr= np.array(stars_table['base_PsfFlux_magErr_{}'.format(visits_aux[i])]), fmt='*', label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
             #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
         plt.xlabel('PS1 magnitudes', fontsize=17)
         plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
         color_term = 20e-3
         color_term_rms = 6e-3
         #plt.plot(ps1_info.gmag, ps1_info.g_r*color_term , '*', color='green', markersize=10, alpha=0.5, linestyle='--', label='g-r * color term')
-        plt.errorbar(ps1_info.gmag,  ps1_info.g_i*color_term_rms , yerr=ps1_info.g_i*color_term , fmt='*', color='black', capsize=4, markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')
+        plt.errorbar(ps1_info.gmag,  ps1_info.g_i*color_term , yerr=ps1_info.g_i*color_term_rms , fmt='*', color='black', capsize=4, markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')
         
         plt.ylabel('Magnitude - PS1 magnitude', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -1208,8 +1214,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         plt.figure(figsize=(10,10))
         for i in range(len(visits_aux)):
-            mag_unc_err = np.sqrt(np.array(stars_table['base_PsfFlux_magErr_x_{}'.format(visits_aux[i])])**2 + (ps1_info.g_i*color_term)**2 )
-            plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_x_{}'.format(visits_aux[i])]) - np.array(ps1_info.gmag) - ps1_info.g_i*color_term_rms ,yerr=mag_unc_err, fmt='*', capsize=4, label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
+            mag_unc_err = np.sqrt(np.array(stars_table['base_PsfFlux_magErr_{}'.format(visits_aux[i])])**2 + (ps1_info.g_i*color_term_rms)**2 )
+            plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])]) - np.array(ps1_info.gmag) - ps1_info.g_i*color_term ,yerr=mag_unc_err, fmt='*', capsize=4, label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
             #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
         plt.xlabel('PS1 magnitudes', fontsize=17)
         plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
@@ -1236,7 +1242,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.figure(figsize=(10,10))
         ii = 0
         for j in range(len(stars_table)):
-            columns = ['base_PsfFlux_mag_x_{}'.format(v) for v in visits_aux]
+            columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
             flux_of_star_j = np.array(stars_table.loc[j][columns])
             plt.plot(dates_aux, flux_of_star_j - np.median(flux_of_star_j), '*',color=s_m.to_rgba(T[ii]), linestyle='--', label='star {}'.format(j+1))
             ii+=1
@@ -1253,7 +1259,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         stars['dates'] = dates_aux #dates - min(dates)
 
         for i in range(len(visits_aux)):
-            mag_stars = np.array(stars_table['base_PsfFlux_mag_x_{}'.format(visits_aux[i])])
+            mag_stars = np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])])
             mags_visits = np.mean(mag_stars)
             #mags_visits_p16.append(np.percentile(mag_stars,))
             mags_visits_list.append(mags_visits)
@@ -1440,7 +1446,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd), yerr = np.sqrt(source_of_interest.fluxerr_nJy**2 + source_of_interest.fluxerr_nJy_coadd**2) , capsize=4, fmt='s', label ='AL Cáceres-Burgos [diff + template]', color='#0827F5', ls ='dotted')
         plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy_coadd), yerr = source_of_interest.fluxerr_nJy_coadd, capsize=4, fmt='s', label ='AL Cáceres-Burgos coadd', color='red', ls ='dotted')
         plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy, yerr = source_of_interest.fluxerr_nJy, capsize=4, fmt='s', label ='AL Cáceres-Burgos diff', color='magenta', ls ='dotted')
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy_cal - np.median(source_of_interest.flux_nJy_cal), yerr = source_of_interest.fluxerr_nJy_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos diff', color='blue', ls ='dotted')
+        plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy_cal - np.median(source_of_interest.flux_nJy_cal), yerr = source_of_interest.fluxerr_nJy_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos cal', color='blue', ls ='dotted')
         
         #for i in range(len(source_of_interest)):
         #    plt.text(np.array(source_of_interest.dates)[i], 0, '{0:.8g}'.format(magzero[i]), rotation=45)
@@ -1809,13 +1815,26 @@ def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
         diaSrcTable = butler.get('goodSeeingDiff_diaSrc', visit=visits[i], detector=ccdnum, collections=collection_diff, instrument='DECam') 
         diaSrcTable = photocalib_coadd.calibrateCatalog(diaSrcTable)
         diaSrcTable_pandas = diaSrcTable.asAstropy().to_pandas()
+        coord_ra_diff = np.array(diaSrcTable_pandas['coord_ra'])
+        coord_dec_diff = np.array(diaSrcTable_pandas['coord_dec'])
+        #diaSrcTable_pandas = diaSrcTable_pandas.rename(columns={'coord_ra':'coord_ra_diff', 'coord_dec': 'coord_dec_diff'})
+        #diaSrcTable_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(diaSrcTable['coord_ra'])]
+        #diaSrcTable_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(diaSrcTable['coord_dec'])]
+
+
         src_pandas = src.asAstropy().to_pandas()
+        src_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_ra'])]
+        src_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_dec'])]
+
+
         srcMatchFull = butler.get('srcMatchFull', visit=visits[i], detector=ccdnum, collections=collection_diff, instrument='DECam')
         srcMatchFull_pandas = srcMatchFull.asAstropy().to_pandas()
+        srcMatchFull_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(srcMatchFull['ref_coord_ra'])]
+        srcMatchFull_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(srcMatchFull['ref_coord_dec'])]
 
-        
-        src_pandas = src_pandas.rename(columns = {'id':'src_id'})
-        diaSrcTable_pandas = diaSrcTable_pandas.rename(columns = {'id' : 'src_id'})
+
+        #src_pandas = src_pandas.rename(columns = {'id':'src_id'})
+        #diaSrcTable_pandas = diaSrcTable_pandas.rename(columns = {'id' : 'src_id'})
 
         x_pix_stars = []
         y_pix_stars = []
@@ -1829,17 +1848,35 @@ def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
 
         pdimx = 2048 
         pdimy = 4096 
+        #mask_diasource = (diaSrcTable_pandas['ip_diffim_forced_PsfFlux_instFlux'].isnull() ) & (diaSrcTable_pandas['ip_diffim_PsfDipoleFlux_chi2dof'].isnull()) & (diaSrcTable_pandas['ip_diffim_PsfDipoleFlux_pos_instFlux'].isnull())
 
-
-        sources = pd.merge(src_pandas, diaSrcTable_pandas, on='src_id', how='outer')
-        sources = pd.merge(sources, srcMatchFull_pandas, on='src_id', how='outer')
+        #sources = pd.merge(src_pandas, diaSrcTable_pandas[mask_diasource], on=['coord_ra_trunc', 'coord_dec_trunc'], how='outer')
+        
+        sources = pd.merge(src_pandas, srcMatchFull_pandas, on=['coord_ra_trunc', 'coord_dec_trunc'], how='outer')
         # (sources['calib_photometry_used'] == True) & 
-        mask = (sources['ip_diffim_forced_PsfFlux_instFlux'].isnull())  & (sources['src_calib_photometry_used'] == True)
+        #mask = (sources['ip_diffim_forced_PsfFlux_instFlux'].isnull())  & (sources['src_calib_photometry_used'] == True)
+        mask = (sources['src_calib_photometry_used'] == True)
+        
         #sources['phot_calib_mean'] = photom_mean * np.ones(len(sources))
-        phot_table = Table.from_pandas(sources[mask])
-        phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra_x'] * u.rad).to(u.degree)
-        phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec_x'] * u.rad).to(u.degree)
+        sources_masked = sources[mask]
+
+        bad_indexes = []
+        for index, row in sources_masked.iterrows():
+            ra = row['coord_ra']
+            dec = row['coord_dec']
+            distance = np.sqrt((coord_ra_diff - ra)**2 + (coord_dec_diff - dec)**2)
+            j, = np.where(distance < 1e-5)
+            if len(j)>0:
+                bad_indexes.append(index)
+                #sources_masked = sources_masked.drop(j)
+        sources_masked = sources_masked.drop(bad_indexes)
+        sources_masked = sources_masked.reset_index()
+
+        phot_table = Table.from_pandas(sources_masked)
+        phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra'] * u.rad).to(u.degree)
+        phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec'] * u.rad).to(u.degree)
         phot_table['phot_calib_mean'] = photom_mean * np.ones(len(phot_table))
+        
         #phot_table['phot_calib_mean'] = 
         Dict_tables['{}'.format(visits[i])] = phot_table
 
@@ -1852,28 +1889,30 @@ def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
     dictio =  Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff)
     big_table = 0
     i=0
-    columns_picked = ['src_id', 'coord_ra_x', 'coord_dec_x', 'coord_ra_ddegrees', 'coord_dec_ddegrees', 'base_CircularApertureFlux_3_0_instFlux_x', 'base_PsfFlux_instFlux_x', 'base_PsfFlux_mag_x', 'base_PsfFlux_magErr_x','slot_PsfFlux_mag_x', 'phot_calib_mean']
+    columns_picked = ['src_id', 'coord_ra', 'coord_dec', 'coord_ra_ddegrees', 'coord_dec_ddegrees', 'base_CircularApertureFlux_3_0_instFlux', 'base_PsfFlux_instFlux', 'base_PsfFlux_mag', 'base_PsfFlux_magErr','slot_PsfFlux_mag', 'phot_calib_mean']
     for key in dictio:
         if key == '{}'.format(visits[0]):
             big_table = dictio[key].to_pandas()[columns_picked]
             new_column_names = ['{}_{}'.format(c, key) for c in columns_picked]
             big_table.columns = new_column_names
-            big_table['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(big_table['coord_ra_x_{}'.format(visits[0])])]
-            big_table['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(big_table['coord_dec_x_{}'.format(visits[0])])]
+            big_table['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(big_table['coord_ra_{}'.format(visits[0])])]
+            big_table['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(big_table['coord_dec_{}'.format(visits[0])])]
             #big_table['photo_calib_{}'.format(visits[0])] = photom_calib[0]
-            big_table['circ_aperture_to_nJy_{}'.format(visits[0])] = big_table['phot_calib_mean_{}'.format(visits[0])] * big_table['base_CircularApertureFlux_3_0_instFlux_x_{}'.format(visits[0])]
-            big_table['psf_flux_to_nJy_{}'.format(key)] = big_table['phot_calib_mean_{}'.format(key)] * big_table['base_PsfFlux_instFlux_x_{}'.format(key)]
+            #big_table = big_table.rename(columns = {'coord_ra_trunc_{}'.format():'src_id'})
+
+            big_table['circ_aperture_to_nJy_{}'.format(visits[0])] = big_table['phot_calib_mean_{}'.format(visits[0])] * big_table['base_CircularApertureFlux_3_0_instFlux_{}'.format(visits[0])]
+            big_table['psf_flux_to_nJy_{}'.format(key)] = big_table['phot_calib_mean_{}'.format(key)] * big_table['base_PsfFlux_instFlux_{}'.format(key)]
             big_table['psf_flux_to_mag_{}'.format(key)] = [pc.FluxJyToABMag(f*1e-9)[0] for f in big_table['psf_flux_to_nJy_{}'.format(key)]]
             i+=1
         else:
             table = dictio[key].to_pandas()[columns_picked]
             new_column_names = ['{}_{}'.format(c, key) for c in columns_picked]
             table.columns = new_column_names
-            table['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(table['coord_ra_x_{}'.format(key)])]
-            table['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(table['coord_dec_x_{}'.format(key)])]
+            table['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(table['coord_ra_{}'.format(key)])]
+            table['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(table['coord_dec_{}'.format(key)])]
             #table['photo_calib_{}'.format(key)] = photom_calib[i]
-            table['circ_aperture_to_nJy_{}'.format(key)] = table['phot_calib_mean_{}'.format(key)] * table['base_CircularApertureFlux_3_0_instFlux_x_{}'.format(key)]
-            table['psf_flux_to_nJy_{}'.format(key)] = table['phot_calib_mean_{}'.format(key)] * table['base_PsfFlux_instFlux_x_{}'.format(key)]
+            table['circ_aperture_to_nJy_{}'.format(key)] = table['phot_calib_mean_{}'.format(key)] * table['base_CircularApertureFlux_3_0_instFlux_{}'.format(key)]
+            table['psf_flux_to_nJy_{}'.format(key)] = table['phot_calib_mean_{}'.format(key)] * table['base_PsfFlux_instFlux_{}'.format(key)]
             table['psf_flux_to_mag_{}'.format(key)] = [pc.FluxJyToABMag(f*1e-9)[0] for f in table['psf_flux_to_nJy_{}'.format(key)]]
             
             big_table = pd.merge(big_table, table, on=['coord_ra_trunc', 'coord_dec_trunc'], how='outer')
