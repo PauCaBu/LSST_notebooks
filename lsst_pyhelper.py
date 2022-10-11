@@ -1095,8 +1095,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         #nstars = len(stars_table)
         np.random.seed(436862)
-        columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1), 'star_{}_ft'.format(i+1), 'star_{}_fterr'.format(i+1), 'star_{}_mag'.format(i+1), 'star_{}_magErr'.format(i+1), 'star_{}_magt'.format(i+1), 'star_{}_magtErr'.format(i+1)] for i in range(nstars)]))
         print('available stars that satisfy criteria: ', len(stars_table))
+        nstars = len(stars_table)
+        columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1), 'star_{}_ft'.format(i+1), 'star_{}_fterr'.format(i+1), 'star_{}_mag'.format(i+1), 'star_{}_magErr'.format(i+1), 'star_{}_magt'.format(i+1), 'star_{}_magtErr'.format(i+1)] for i in range(nstars)]))
         stars = pd.DataFrame(columns=columns_stars)
         stars_table = stars_table.sample(n=nstars)
         stars_table = stars_table.reset_index()
@@ -1213,9 +1214,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         
         plt.figure(figsize=(10,10))
+        abs_zero = 0.04
         for i in range(len(visits_aux)):
             mag_unc_err = np.sqrt(np.array(stars_table['base_PsfFlux_magErr_{}'.format(visits_aux[i])])**2 + (ps1_info.g_i*color_term_rms)**2 )
-            plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])]) - np.array(ps1_info.gmag) - ps1_info.g_i*color_term ,yerr=mag_unc_err, fmt='*', capsize=4, label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
+            plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])]) - np.array(ps1_info.gmag) - ps1_info.g_i*color_term - abs_zero ,yerr=mag_unc_err, fmt='*', capsize=4, label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
             #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
         plt.xlabel('PS1 magnitudes', fontsize=17)
         plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
@@ -1543,6 +1545,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
     ccds_used = []
     for i in range(len(ccds)):
         try:
+            print('Trying ccd: ', ccds[i])
             data = get_all_exposures(repo, 'science')
             visits = list(data[(data['target_name']=='{}'.format(field)) & (data['day_obs']<20150219)].exposure)
             ra, dec = ra_agn[index[i]], dec_agn[index[i]]
@@ -1550,7 +1553,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
             name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_calibLsst').replace('.', '_')
-            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r='seeing', factor=factor, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=100)
+            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r='seeing', factor=factor, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=10)
             
             if len(df) != 0 or type(df)!=None:
 
