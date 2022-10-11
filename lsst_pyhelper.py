@@ -1933,6 +1933,7 @@ def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
     big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff)
     phot_table = big_table.dropna()
     phot_table = phot_table.reset_index()
+    phot_table = phot_table.drop_duplicates('coord_ra_trunc')
     #phot_table = phot_table.drop('index')
     return phot_table
 
