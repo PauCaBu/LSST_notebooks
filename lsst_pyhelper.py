@@ -608,7 +608,7 @@ def Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, visits
         
         stamp_display[0].dot('o', x_pix, y_pix, ctype='cyan', size=s)
         if i==1:
-            print('hello i == 1')
+            #print('hello i == 1')
             plt.ylabel('Science', fontsize=15)
         plt.axis('off')
         plt.title(visit_date_astropy.mjd)
@@ -707,6 +707,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest : [pd.DataFrame]
     
     """
+
+    my_calib = []
+    calib_lsst = []
+
     Fluxes_unscaled = []
     Fluxes_err_unscaled = []
     
@@ -908,28 +912,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         photocalib_cal = calexp.getPhotoCalib()
         photocalib_coadd = coadd.getPhotoCalib()
 
-        #Here we for the case of the calibrated image, before doing the aperture photometry.
-
-        diffexp_calib_image = np.asarray(photocalib.calibrateImage(diffexp.getMaskedImage()).image.array, dtype='float')
-        calexp_calib_image = np.asarray(photocalib_cal.calibrateImage(calexp.getMaskedImage()).image.array, dtype='float')
-        coadd_calib_image = np.asarray(photocalib_coadd.calibrateImage(coadd.getMaskedImage()).image.array, dtype='float')
-
-        diffexp_calib_image_var = np.asarray(photocalib.calibrateImage(diffexp.getMaskedImage()).variance.array, dtype='float')
-        calexp_calib_image_var = np.asarray(photocalib_cal.calibrateImage(calexp.getMaskedImage()).variance.array, dtype='float')
-        coadd_calib_image_var = np.asarray(photocalib_coadd.calibrateImage(coadd.getMaskedImage()).variance.array, dtype='float')
-        
-        flux_di, fluxerr_di, flag = sep.sum_circle(diffexp_calib_image, [x_pix], [y_pix], r_aux, var = diffexp_calib_image_var)
-        flux_co, fluxerr_co, flag = sep.sum_circle(coadd_calib_image, [x_pix], [y_pix], r_aux, var = coadd_calib_image_var)
-        flux_ca, fluxerr_ca, flag = sep.sum_circle(calexp_calib_image, [x_pix], [y_pix], r_aux, var = calexp_calib_image_var)
-
-
-
         expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
         print('exposure Time: ', expTime)
 
         #magzero_image = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
         calib_image = photocalib_coadd.getCalibrationMean()
-        
+        print('calibration mean: ', calib_image)
+        calib = pc.DoCalibration(repo, visits_aux[i], ccd_num, collection_diff)
+        calib_lsst.append(calib_image)
+        my_calib.append(calib)
 
         if i == 0:
             flux_reference = flux_coadd[0]
@@ -1077,6 +1068,18 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         flags.append(flags)
         print('------------------------------------------')
 
+    # comparison between calibration factors 
+
+    plt.figure(figsize=(10,6))
+    plt.plot(dates_aux, my_calib, '*', color='black', label='My calib')
+    plt.plot(dates_aux, calib_lsst, 'o', color='blue', label='lsst cal')
+    
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('Calibration mean', fontsize=17)
+    plt.title('Calibration scaling comparison', fontsize=17)
+    plt.legend()
+    plt.show()
+
     if do_lc_stars == True:
         py = 2048 - 200
         px = 4096 - 200
@@ -1110,10 +1113,19 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         ps1_info = pc.get_from_catalog_ps1(ra_s, dec_s)
         ps1_info = ps1_info.sort_values('gmag')
 
+        # Airmass plot
+
+        plt.figure(figsize=(10,6))
+        plt.plot(dates_aux, Airmass, 'o', color='magenta', linestyle='--')
+        plt.title('Airmass', fontsize=17)
+        plt.xlabel('MJD', fontsize=17)
+        plt.ylabel('Airmass', fontsize=17)
+        plt.show()
+        
         for j in range(len(visits_aux)):
             RA = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits_aux[j])], dtype=float)
             DEC = np.array(stars_table['coord_dec_ddegrees_{}'.format(visits_aux[j])], dtype=float)
-
+            
             diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[j], detector=ccd_num , collections=collection_diff, instrument='DECam')
             coadd = butler.get('goodSeeingDiff_matchedExp',visit=visits_aux[j], detector=ccd_num , collections=collection_diff, instrument='DECam')
             photocalib = diffexp.getPhotoCalib()
@@ -1191,34 +1203,38 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         # create a ScalarMappable and initialize a data structure
         s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
         s_m.set_array([])
-        T = np.linspace(0,27,nstars)
+        T = np.linspace(0,27,len(visits_aux))
 
         plt.show()
         plt.figure(figsize=(10,10))
         stars_table = stars_table.sort_values('base_PsfFlux_mag_{}'.format(visits_aux[0]))
+        #kk = 0
         for i in range(len(visits_aux)):
             plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])]) - np.array((ps1_info.gmag)), yerr= np.array(stars_table['base_PsfFlux_magErr_{}'.format(visits_aux[i])]), fmt='*', label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
+            #k+=0
             #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
         plt.xlabel('PS1 magnitudes', fontsize=17)
         plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
         color_term = 20e-3
         color_term_rms = 6e-3
         #plt.plot(ps1_info.gmag, ps1_info.g_r*color_term , '*', color='green', markersize=10, alpha=0.5, linestyle='--', label='g-r * color term')
-        plt.errorbar(ps1_info.gmag,  ps1_info.g_i*color_term , yerr=ps1_info.g_i*color_term_rms , fmt='*', color='black', capsize=4, markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')
-        
+        plt.errorbar(ps1_info.gmag,  ps1_info.g_i*color_term , yerr=ps1_info.g_i*color_term_rms , fmt='*', color='black', capsize=4, markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')        
         plt.ylabel('Magnitude - PS1 magnitude', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.title('Difference between magnitudes', fontsize=17)
         plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
         plt.show()
 
-        
+
+        color_correc = pd.Series(ps1_info.g_i*color_term ,index=ps1_info.index).to_dict()
+        print(color_correc)
         plt.figure(figsize=(10,10))
-        abs_zero = 0.04
+        abs_zero = 0#.04
         for i in range(len(visits_aux)):
             mag_unc_err = np.sqrt(np.array(stars_table['base_PsfFlux_magErr_{}'.format(visits_aux[i])])**2 + (ps1_info.g_i*color_term_rms)**2 )
             plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])]) - np.array(ps1_info.gmag) - ps1_info.g_i*color_term - abs_zero ,yerr=mag_unc_err, fmt='*', capsize=4, label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
             #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
+        #stars_table['color_color_term'] = ps1_info.g_i*color_term 
         plt.xlabel('PS1 magnitudes', fontsize=17)
         plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
         
@@ -1232,6 +1248,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
         plt.show()
 
+        columns_mag = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+        columns_magErr = ['base_PsfFlux_magErr_{}'.format(v) for v in visits_aux]
+        fig, axs = plt.subplots(int(np.sqrt(nstars))+1,int(np.sqrt(nstars))+1 , figsize=(10, 6), constrained_layout=True)
+        for ax, markevery in zip(axs.flat, range(nstars)):           
+            ax.set_title(f'star number {markevery+1}')
+            flux = np.array(stars_table.loc[markevery][columns_mag])
+            fluxErr = np.array(stars_table.loc[markevery][columns_magErr])
+            ax.errorbar(dates_aux, flux, yerr=fluxErr, fmt = 'o', ls='-', color='#f9a900')
         #here we plot the stars vs panstarss magnitude:
         norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
         c_m = matplotlib.cm.plasma
@@ -1244,13 +1268,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.figure(figsize=(10,10))
         ii = 0
         for j in range(len(stars_table)):
-            columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
-            flux_of_star_j = np.array(stars_table.loc[j][columns])
-            plt.plot(dates_aux, flux_of_star_j - np.median(flux_of_star_j), '*',color=s_m.to_rgba(T[ii]), linestyle='--', label='star {}'.format(j+1))
+            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+            plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j  - color_correc[j] ) - color_correc[j], '*',color=s_m.to_rgba(T[ii]), linestyle='--', label='star {}'.format(j+1))
             ii+=1
         plt.xlabel('MJD', fontsize=17)
-        plt.ylabel('magnitude of LSST - median')
-        plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        plt.ylabel('magnitude of LSST - median', fontsize=17)
+        plt.title('Lightcurves of stars, measured by LSST - color uncorrected', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
@@ -1276,8 +1300,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         saturated_stars = np.unique(np.array(saturated_stars))
         plt.figure(figsize=(10,6))       
         stars = stars.sort_values(by='dates')
-        print('Here is the dataset of the stars calculated: ')
-        print(stars)
+        #print('Here is the dataset of the stars calculated: ')
+        #print(stars)
         column_stars_diff_flux = ['star_{}_f'.format(i+1) for i in range(nstars)]
         diff_flux_stars = stars[column_stars_diff_flux]
         max_value = max(list(stars.index))
@@ -1801,88 +1825,107 @@ def Find_stars(ra, dec, width, height, n, seed=[True, 200]):
 
     return table
 
-def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
+
+def Select_table_from_one_exposure(repo, visit, ccdnum, collection_diff, well_subtracted=True):
+    """
+    Selects star used for photometry from a src table, it also can ensure that it is well subtracted in the 
+    difference image 
+
+    Input:
+    ------
+    repo : [string]
+    visit : [ndarray]
+    ccdnum : [int]
+    collection_diff : [string]
+    well_subtracted : [bool] True by default
+    
+    Output:
+    -------
+    phot_table : [Astropy Table]
+    """
+
     butler = Butler(repo)
-    Dict_tables = {}
-    photom_calib = []
-    for i in range(len(visits)):
-        diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccdnum , collections=collection_diff, instrument='DECam')
-        coadd = butler.get('goodSeeingDiff_matchedExp',visit=visits[i], detector=ccdnum , collections=collection_diff, instrument='DECam')
-        photocalib_coadd = coadd.getPhotoCalib()
-        photom_mean = photocalib_coadd.getCalibrationMean()
-        photom_calib.append(photom_mean)
-        wcs = diffexp.getWcs()
-        
-        src = butler.get('src',visit=visits[i], detector=ccdnum , collections=collection_diff, instrument='DECam')
-        src = photocalib_coadd.calibrateCatalog(src)
-        diaSrcTable = butler.get('goodSeeingDiff_diaSrc', visit=visits[i], detector=ccdnum, collections=collection_diff, instrument='DECam') 
-        diaSrcTable = photocalib_coadd.calibrateCatalog(diaSrcTable)
-        diaSrcTable_pandas = diaSrcTable.asAstropy().to_pandas()
-        coord_ra_diff = np.array(diaSrcTable_pandas['coord_ra'])
-        coord_dec_diff = np.array(diaSrcTable_pandas['coord_dec'])
-        #diaSrcTable_pandas = diaSrcTable_pandas.rename(columns={'coord_ra':'coord_ra_diff', 'coord_dec': 'coord_dec_diff'})
-        #diaSrcTable_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(diaSrcTable['coord_ra'])]
-        #diaSrcTable_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(diaSrcTable['coord_dec'])]
+    diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    coadd = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    photocalib_coadd = coadd.getPhotoCalib()
+    photom_mean = photocalib_coadd.getCalibrationMean()
 
+    wcs = diffexp.getWcs()
+    
+    src = butler.get('src',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    src = photocalib_coadd.calibrateCatalog(src)
+    diaSrcTable = butler.get('goodSeeingDiff_diaSrc', visit=visit, detector=ccdnum, collections=collection_diff, instrument='DECam') 
+    diaSrcTable = photocalib_coadd.calibrateCatalog(diaSrcTable)
+    diaSrcTable_pandas = diaSrcTable.asAstropy().to_pandas()
+    coord_ra_diff = np.array(diaSrcTable_pandas['coord_ra'])
+    coord_dec_diff = np.array(diaSrcTable_pandas['coord_dec'])
 
-        src_pandas = src.asAstropy().to_pandas()
-        src_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_ra'])]
-        src_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_dec'])]
+    src_pandas = src.asAstropy().to_pandas()
+    src_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_ra'])]
+    src_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_dec'])]
 
+    srcMatchFull = butler.get('srcMatchFull', visit=visit, detector=ccdnum, collections=collection_diff, instrument='DECam')
+    srcMatchFull_pandas = srcMatchFull.asAstropy().to_pandas()
+    srcMatchFull_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(srcMatchFull['ref_coord_ra'])]
+    srcMatchFull_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(srcMatchFull['ref_coord_dec'])]
 
-        srcMatchFull = butler.get('srcMatchFull', visit=visits[i], detector=ccdnum, collections=collection_diff, instrument='DECam')
-        srcMatchFull_pandas = srcMatchFull.asAstropy().to_pandas()
-        srcMatchFull_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(srcMatchFull['ref_coord_ra'])]
-        srcMatchFull_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(srcMatchFull['ref_coord_dec'])]
+    x_pix_stars = []
+    y_pix_stars = []
 
-
-        #src_pandas = src_pandas.rename(columns = {'id':'src_id'})
-        #diaSrcTable_pandas = diaSrcTable_pandas.rename(columns = {'id' : 'src_id'})
-
-        x_pix_stars = []
-        y_pix_stars = []
-
-        for src in diaSrcTable:
-            x_pix_stars.append(src.getX())
-            y_pix_stars.append(src.getY())
+    for src in diaSrcTable:
+        x_pix_stars.append(src.getX())
+        y_pix_stars.append(src.getY())
  
-        x_pix_stars = np.array(x_pix_stars)
-        y_pix_stars = np.array(y_pix_stars)
+    x_pix_stars = np.array(x_pix_stars)
+    y_pix_stars = np.array(y_pix_stars)
 
-        pdimx = 2048 
-        pdimy = 4096 
-        #mask_diasource = (diaSrcTable_pandas['ip_diffim_forced_PsfFlux_instFlux'].isnull() ) & (diaSrcTable_pandas['ip_diffim_PsfDipoleFlux_chi2dof'].isnull()) & (diaSrcTable_pandas['ip_diffim_PsfDipoleFlux_pos_instFlux'].isnull())
+    pdimx = 2048 
+    pdimy = 4096 
 
-        #sources = pd.merge(src_pandas, diaSrcTable_pandas[mask_diasource], on=['coord_ra_trunc', 'coord_dec_trunc'], how='outer')
-        
-        sources = pd.merge(src_pandas, srcMatchFull_pandas, on=['coord_ra_trunc', 'coord_dec_trunc'], how='outer')
-        # (sources['calib_photometry_used'] == True) & 
-        #mask = (sources['ip_diffim_forced_PsfFlux_instFlux'].isnull())  & (sources['src_calib_photometry_used'] == True)
-        mask = (sources['src_calib_photometry_used'] == True)
-        
-        #sources['phot_calib_mean'] = photom_mean * np.ones(len(sources))
-        sources_masked = sources[mask]
+    sources = pd.merge(src_pandas, srcMatchFull_pandas, on=['coord_ra_trunc', 'coord_dec_trunc'], how='outer')
+    mask = (sources['src_calib_photometry_used'] == True)
+    sources_masked = sources[mask]
 
+    if well_subtracted:
         bad_indexes = []
         for index, row in sources_masked.iterrows():
             ra = row['coord_ra']
             dec = row['coord_dec']
             distance = np.sqrt((coord_ra_diff - ra)**2 + (coord_dec_diff - dec)**2)
-            j, = np.where(distance < 1e-5)
+            j, = np.where(distance < 5e-6)
             if len(j)>0:
                 bad_indexes.append(index)
-                #sources_masked = sources_masked.drop(j)
-        sources_masked = sources_masked.drop(bad_indexes)
+        sources_masked = sources_masked.drop(np.unique(bad_indexes))
         sources_masked = sources_masked.reset_index()
+    sources_masked = sources_masked.dropna(subset=['coord_ra', 'coord_dec'])
+    phot_table = Table.from_pandas(sources_masked)
+    phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra'] * u.rad).to(u.degree)
+    phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec'] * u.rad).to(u.degree)
+    phot_table['phot_calib_mean'] = photom_mean * np.ones(len(phot_table))
+  
+    return phot_table
 
-        phot_table = Table.from_pandas(sources_masked)
-        phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra'] * u.rad).to(u.degree)
-        phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec'] * u.rad).to(u.degree)
-        phot_table['phot_calib_mean'] = photom_mean * np.ones(len(phot_table))
-        
-        #phot_table['phot_calib_mean'] = 
-        Dict_tables['{}'.format(visits[i])] = phot_table
+def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
+    """
+    From the src tables of LSST for each exposure, we select the sources that were used for photometry,
+    which are the stars. We add them all in a dictionary whose keys are the visit number, and the 
+    content is an astropy table with the stars.
 
+    Input: 
+    ------
+    repo : [string]
+    visits : [ndarray]
+    ccdnum : [int]
+    collection_diff : [string]
+    
+    Output: 
+    ------
+    Dict_tables : [dict]
+
+    """
+    Dict_tables = {}
+    for i in range(len(visits)):
+        Dict_tables['{}'.format(visits[i])] = Select_table_from_one_exposure(repo, visits[i], ccdnum, collection_diff)
     return Dict_tables
 
 def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
@@ -1932,8 +1975,8 @@ def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff):
     """
     big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff)
     phot_table = big_table.dropna()
-    phot_table = phot_table.reset_index()
     phot_table = phot_table.drop_duplicates('coord_ra_trunc')
+    phot_table = phot_table.reset_index()
     #phot_table = phot_table.drop('index')
     return phot_table
 
