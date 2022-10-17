@@ -710,6 +710,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     my_calib = []
     calib_lsst = []
+    my_calib_inter = []
 
     Fluxes_unscaled = []
     Fluxes_err_unscaled = []
@@ -757,7 +758,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     pixel_to_arcsec = 0.2626 #arcsec/pixel, value from Manual of NOAO - DECam
     
     r_in_arcsec = r 
-    
     if type(r) != str:
         r/=pixel_to_arcsec
 
@@ -919,8 +919,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         calib_image = photocalib_coadd.getCalibrationMean()
         print('calibration mean: ', calib_image)
         calib = pc.DoCalibration(repo, visits_aux[i], ccd_num, collection_diff)
+        calib_mean = calib[0]
+        calib_intercept = calib[1]
         calib_lsst.append(calib_image)
-        my_calib.append(calib)
+        my_calib.append(calib_mean)
+        my_calib_inter.append(calib_intercept)
 
         if i == 0:
             flux_reference = flux_coadd[0]
@@ -1080,6 +1083,26 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     plt.legend()
     plt.show()
 
+    # plorrint calib intercept
+
+    plt.figure(figsize=(10,6))
+    plt.plot(dates_aux, my_calib_inter, '*', color='black', label='My calib')
+    #plt.plot(dates_aux, calib_lsst, 'o', color='blue', label='lsst cal')
+    
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('Calibration intercept', fontsize=17)
+    plt.title('Calibration scaling intercept', fontsize=17)
+    plt.legend()
+    plt.show()
+
+    # Airmass plot
+    plt.figure(figsize=(10,6))
+    plt.plot(dates_aux, Airmass, 'o', color='magenta', linestyle='--')
+    plt.title('Airmass', fontsize=17)
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('Airmass', fontsize=17)
+    plt.show()
+
     if do_lc_stars == True:
         py = 2048 - 200
         px = 4096 - 200
@@ -1113,14 +1136,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         ps1_info = pc.get_from_catalog_ps1(ra_s, dec_s)
         ps1_info = ps1_info.sort_values('gmag')
 
-        # Airmass plot
-
-        plt.figure(figsize=(10,6))
-        plt.plot(dates_aux, Airmass, 'o', color='magenta', linestyle='--')
-        plt.title('Airmass', fontsize=17)
-        plt.xlabel('MJD', fontsize=17)
-        plt.ylabel('Airmass', fontsize=17)
-        plt.show()
         
         for j in range(len(visits_aux)):
             RA = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits_aux[j])], dtype=float)
