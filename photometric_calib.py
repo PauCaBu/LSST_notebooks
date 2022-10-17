@@ -838,7 +838,9 @@ def DoCalibration(repo, visit, ccdnum, collection_diff):
     #print('model_ - y : ',model_ - y)
     #print('X: ',X.ravel())
     ax2.plot(X.ravel(), model_ - y, 'o', color='purple', label='residuals')
-    ax2.set_ylim(-5000,5000)
+    ax2.set_ylim(-2500,2500)
+
+    ax2.axhline(y=0, color='grey', linestyle='--')
     #ax2.xlim(0,100000)
     #ax2.show()    
     plt.show()
