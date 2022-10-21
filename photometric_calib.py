@@ -297,13 +297,13 @@ def mag_stars_calculation(repo, visit, ccdnum, collection_diff):
         r = seeing*2
         r/=pixel_to_arcsec
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(calexp.variance.array, dtype='float'))
-        calc_flx = flux[0]*1.05
+        calc_flx = flux[0]#*1.05
         calc_mag = phot_calexp.instFluxToMagnitude(calc_flx, obj_pos_2d)
 
         # calculating in the coadd image
         data_coadd = np.asarray(coadd.image.array, dtype='float')
         flux_coadd, fluxerr_coadd, flagc = sep.sum_circle(data_coadd, [x_pix], [y_pix], r=r, var = np.asarray(coadd.variance.array, dtype='float'))
-        calc_flx_coadd = flux_coadd[0]*1.05
+        calc_flx_coadd = flux_coadd[0]#*1.05
 
         # m_instrumental 
         expoTime = float(calexp.getInfo().getVisitInfo().exposureTime)
@@ -727,9 +727,24 @@ def FluxJyToABMag(flux, fluxerr=None):
     return magab, magab_err
 
 
-def ABMagToFlux(mab):
+def ABMagToFlux(mab, mab_err=None):
+    """
+    Returns AB magnitude to flux in Jy
+
+    Input:
+    -----
+    mab : [float]
+
+    Output:
+    -------
+    f : [float]
+    """
     f = 10**(-0.4*(mab - 8.90))
-    return f
+    if mab_err != None:
+        f_err = np.sqrt((f*np.log(10)*0.4*mab_err)**2)
+        return f, f_err
+    else:
+        return f
 
 
 def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
@@ -751,9 +766,12 @@ def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
     """
     pixel_to_arcsec = 0.2626 #arcsec/pixel 
     butler = Butler(repo)
+    #LSST_stars =  lp.Join_Tables_from_LSST(repo, visit, ccdnum, collection_diff, well_subtracted=False)
+    
     LSST_stars = lp.Select_table_from_one_exposure(repo, visit, ccdnum, collection_diff, well_subtracted=False)
     LSST_stars_to_pandas = LSST_stars.to_pandas()
     LSST_stars_to_pandas = LSST_stars_to_pandas.reset_index()
+
     calexp = butler.get('calexp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
     coadd = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
     df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag','Panstarss_dr1_flx', 'calculated_byme_flx', 'seeing','m_inst', 'airmass', 'expoTime'])
@@ -775,7 +793,7 @@ def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
             except KeyError:
                 print("{} not found".format(col))
         ps1_mag = float(tab['gMeanPSFMag'][0])
-        ps1_flux = ABMagToFlux(ps1_mag)*1e9
+        ps1_flux = ABMagToFlux(ps1_mag)*1e9 # to nJy flux
         
         # calculated by me using Source Extractor 
         obj_pos_lsst = lsst.geom.SpherePoint(ra_star, dec_star, lsst.geom.degrees)
@@ -790,7 +808,7 @@ def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
         r = seeing*2
         r/=pixel_to_arcsec
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(coadd.variance.array, dtype='float'))
-        calc_flx = flux[0]*1.05 # here is to simulate a PSF type calculation of the flux
+        calc_flx = flux[0]
 
         # m_instrumental 
         expoTime = float(calexp.getInfo().getVisitInfo().exposureTime)
@@ -805,7 +823,10 @@ def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
  
     return df 
 
-def DoCalibration(repo, visit, ccdnum, collection_diff):
+def DoCalibration(repo, visit, ccdnum, collection_diff, config='SIBLING'):
+    """
+    Calibrate stars 
+    """
     stars = get_fluxes_from_stars(repo, visit, ccdnum, collection_diff)
     print('Doing photometric calibration with {} stars'.format(len(stars)))
     
@@ -813,13 +834,18 @@ def DoCalibration(repo, visit, ccdnum, collection_diff):
     #my_counts = np.array(stars.calculated_byme_flx)#.reshape(-1, 1)
     #print(ps1_flux)
     #print(my_counts)
+    exp_time = 1 #np.unique(stars.expoTime)[0]
     ps1_flux = np.array(stars.Panstarss_dr1_flx)#.reshape(-1, 1)
-    my_counts = np.array(stars.calculated_byme_flx).reshape(-1, 1)
+    my_counts = np.array(stars.calculated_byme_flx).reshape(-1, 1)/exp_time
     X, y = my_counts, ps1_flux
     #print(ps1_flux)
     #print(my_counts)
     x = np.linspace(X.min(), X.max(), len(X))
-    epsilon = 1.35
+    if config == 'SIBLING':
+        epsilon = 1.35
+    elif config == 'eridanus':
+        epsilon = 1.5
+    
     huber = HuberRegressor(fit_intercept=True, alpha=0.0, max_iter=100, epsilon=epsilon)
     huber.fit(X, y)
     coef_ = huber.coef_ * x + huber.intercept_
@@ -827,21 +853,137 @@ def DoCalibration(repo, visit, ccdnum, collection_diff):
     f, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [2, 1]},sharex=True, figsize=(10,6))
     ax1.plot(x, coef_, 'magenta', label="huber loss, %s" % epsilon)
     ax1.plot(X, y, '*', color='blue')
-    ax1.set_xlim(0,20000)
-    ax1.set_ylim(0,0.1e6)
-    ax2.set_xlabel('Counts from PSF aperture', fontsize=17)
+    if config == 'SIBLING':
+        #ax1.set_xlim(0,20000)
+        #ax1.set_ylim(0,0.1e6)
+        #ax2.set_ylim(-2500,2500)
+        pass
+    
+    ax2.set_xlabel('Aperture fotometry from flux in counts [ADU^2]', fontsize=17)
     ax1.set_ylabel('PS1 flux [nJy]', fontsize=17)
-    ax1.set_title('Calibration found : c {} + {}'.format(huber.coef_, huber.intercept_), fontsize=17)
+    ax1.set_title('Calibration found : c {} + {}'.format(huber.coef_[0], huber.intercept_), fontsize=17)
     ax1.legend()
     #plt.subplot(313)
     model_ = huber.coef_ * X.ravel() + huber.intercept_ 
     #print('model_ - y : ',model_ - y)
     #print('X: ',X.ravel())
     ax2.plot(X.ravel(), model_ - y, 'o', color='purple', label='residuals')
-    ax2.set_ylim(-2500,2500)
+    
 
     ax2.axhline(y=0, color='grey', linestyle='--')
     #ax2.xlim(0,100000)
     #ax2.show()    
     plt.show()
-    return huber.coef_, huber.intercept_
+    return huber.coef_[0], huber.intercept_
+
+
+
+def DoRelativeCalibration(repo, visit1, calib_mean, calib_intercept, visit2, ccdnum, collection_diff, config='SIBLING'):
+    """
+    Calibrate between two exposures 
+    """
+    butler = Butler(repo)
+    visits = [visit1, visit2]
+    stars = lp.Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted=False)
+    print('Doing photometric calibration with {} stars'.format(len(stars)))
+    #print(stars[['coord_ra_ddegrees', 'coord_dec_ddegrees']])
+    coadd1 = butler.get('goodSeeingDiff_matchedExp',visit=visit1, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    coadd2 = butler.get('goodSeeingDiff_matchedExp',visit=visit2, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag','Panstarss_dr1_flx', 'calculated_byme_flx1', 'calculated_byme_flx2'])
+
+    for i in range(len(stars)):
+        ra_star1 =stars.loc[i]['coord_ra_ddegrees_{}'.format(visit1)]
+        dec_star1 = stars.loc[i]['coord_dec_ddegrees_{}'.format(visit1)]
+
+        ra_star2 =stars.loc[i]['coord_ra_ddegrees_{}'.format(visit2)]
+        dec_star2 = stars.loc[i]['coord_dec_ddegrees_{}'.format(visit2)]
+
+
+        # from Panstarss catalog
+        constraints = {'nDetections.gt':1}
+        results = ps1cone(ra_star1, dec_star1, 0.00028, **constraints)
+        tab = ascii.read(results)
+        # improve the format
+        for filter in 'grizy':
+            col = filter+'MeanPSFMag'
+            try:
+                tab[col].format = ".4f"
+                tab[col][tab[col] == -999.0] = np.nan
+            except KeyError:
+                print("{} not found".format(col))
+        ps1_mag = float(tab['gMeanPSFMag'][0])
+        ps1_flux = ABMagToFlux(ps1_mag)*1e9
+        
+        # calculated by me using Source Extractor -- for visit1 
+        obj_pos_lsst = lsst.geom.SpherePoint(ra_star1, dec_star1, lsst.geom.degrees)
+        obj_pos_2d = lsst.geom.Point2D(ra_star1, dec_star1)
+        wcs = coadd1.getWcs()
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        data = np.asarray(coadd1.image.array, dtype='float')
+        psf = coadd1.getPsf()
+        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
+        pixel_to_arcsec = 0.2626 #arcsec/pixel 
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec
+        r = seeing*2
+        r/=pixel_to_arcsec
+        flux1, fluxerr1, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(coadd1.variance.array, dtype='float'))
+        calc_flx1 = flux1[0]*1.05 # here is to simulate a PSF type calculation of the flux
+
+        # calculated by me using Source Extractor -- for visit2
+        obj_pos_lsst = lsst.geom.SpherePoint(ra_star2, dec_star2, lsst.geom.degrees)
+        obj_pos_2d = lsst.geom.Point2D(ra_star2, dec_star2)
+        wcs = coadd2.getWcs()
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        data = np.asarray(coadd2.image.array, dtype='float')
+        psf = coadd2.getPsf()
+        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
+        pixel_to_arcsec = 0.2626 #arcsec/pixel 
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec
+        r = seeing*2
+        r/=pixel_to_arcsec
+        flux2, fluxerr2, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(coadd2.variance.array, dtype='float'))
+        calc_flx2 = flux2[0]*1.05 # here is to simulate a PSF type calculation of the flux
+        
+        df.loc[len(df)] = [ra_star1, dec_star1, ps1_mag, ps1_flux, calc_flx1, calc_flx2]
+
+    flx_njy_visit1 = calib_mean* np.array(df.calculated_byme_flx1) + calib_intercept
+    counts_visit2 = np.array(df.calculated_byme_flx2).reshape(-1, 1)
+    X, y = counts_visit2, flx_njy_visit1
+    x = np.linspace(X.min(), X.max(), len(X))
+
+    if config == 'SIBLING':
+        epsilon = 1.35
+    elif config == 'eridanus':
+        epsilon = 1.5
+
+    huber = HuberRegressor(fit_intercept=True, alpha=0.0, max_iter=100, epsilon=epsilon)
+    huber.fit(X, y)
+    coef_ = huber.coef_ * x + huber.intercept_
+
+
+    plt.figure(1, figsize=(10,6))
+    f, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [2, 1]},sharex=True, figsize=(10,6))
+    ax1.plot(x, coef_, 'magenta', label="huber loss, %s" % epsilon)
+    ax1.plot(X, y, '*', color='blue')
+    if config == 'SIBLING':
+        #ax1.set_xlim(0,20000)
+        #ax1.set_ylim(0,0.1e6)
+        #ax2.set_ylim(-2500,2500)
+        print(' ')
+    
+    ax2.set_xlabel('Counts from PSF aperture of {}'.format(visit2), fontsize=17)
+    ax1.set_ylabel('PSF flux visit {}'.format(visit1), fontsize=17)
+    ax1.set_title('Calibration found : c {} + {}'.format(huber.coef_[0], huber.intercept_), fontsize=17)
+    ax1.legend()
+    #plt.subplot(313)
+    model_ = huber.coef_ * X.ravel() + huber.intercept_ 
+    #print('model_ - y : ',model_ - y)
+    #print('X: ',X.ravel())
+    ax2.plot(X.ravel(), model_ - y, 'o', color='purple', label='residuals')
+    ax2.set_yscale('log')
+
+    ax2.axhline(y=0, color='grey', linestyle='--')
+    #ax2.xlim(0,100000)
+    #ax2.show()    
+    plt.show()
+    return huber.coef_[0], huber.intercept_

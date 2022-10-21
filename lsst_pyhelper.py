@@ -1999,6 +1999,7 @@ def Select_table_from_one_exposure(repo, visit, ccdnum, collection_diff, well_su
                 bad_indexes.append(index)
         sources_masked = sources_masked.drop(np.unique(bad_indexes))
         sources_masked = sources_masked.reset_index()
+
     sources_masked = sources_masked.dropna(subset=['coord_ra', 'coord_dec'])
     phot_table = Table.from_pandas(sources_masked)
     phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra'] * u.rad).to(u.degree)
@@ -2040,7 +2041,7 @@ def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted
     if type(visits) == int:
         visits = [visits]
 
-    dictio =  Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = True)
+    dictio =  Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = well_subtracted)
     big_table = 0
     i=0
     columns_picked = ['src_id', 'coord_ra', 'coord_dec', 'coord_ra_ddegrees', 'coord_dec_ddegrees', 'base_CircularApertureFlux_3_0_instFlux', 'base_PsfFlux_instFlux', 'base_PsfFlux_mag', 'base_PsfFlux_magErr','slot_PsfFlux_mag', 'phot_calib_mean']
