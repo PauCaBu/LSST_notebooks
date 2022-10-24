@@ -21,7 +21,7 @@ field = pd.read_csv('~/testdata_hits/FieldHiTS_Radec.txt', sep=' ')
 ra = field['ra']
 dec = field['dec']
 
-PATH_TO_DOWNLOAD = 'https://tigress-web.princeton.edu/~pprice/ps1_pv3_3pi_20170110/'
+PATH_TO_DOWNLOAD = 'https://tigress-web.princeton.edu/~HSC/refcats/gaia_dr2_20200414/' #'https://tigress-web.princeton.edu/~pprice/ps1_pv3_3pi_20170110/'
 
 def Download_fields(ra,dec,radius,output_path,download=False):
     '''
@@ -56,6 +56,8 @@ def Download_fields(ra,dec,radius,output_path,download=False):
                 pass
     return
 
-Download_fields(ra,dec,radius,'/home/jahumada/ps1_pv3_3pi_20170110/',download=False)
+
+#Download_fields(ra,dec,radius,'/home/jahumada/ps1_pv3_3pi_20170110/',download=False)
+Download_fields(ra,dec,radius,'/home/jahumada/gaia_dr2_20200414/',download=True)
 
 
