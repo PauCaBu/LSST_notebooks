@@ -920,7 +920,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
         print('exposure Time: ', expTime)
         
-        calib_path = main_path + 'calibration/calibration_{}_{}'.format(field, ccd_num)
+        calib_path = main_path + 'calibration/calibration_scaling_{}_{}.npz'.format(field, ccd_num)
         
         #magzero_image = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
         calib_image = photocalib_coadd.getCalibrationMean()
@@ -938,6 +938,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         my_calib_inter.append(calib_intercept)
 
         if not os.path.isfile(calib_path):
+            print(calib_path, ' doesnt exist')
             if i == 0:
                 calib = pc.DoCalibration(repo, visits_aux[i], ccd_num, collection_diff, config=config)
 
@@ -954,6 +955,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             npzfile = np.load(calib_path)
             calib_relative = npzfile['x']
             calib_relative_intercept= npzfile['y']
+            calibRel_mean = calib_relative[i]
+            calibRel_intercept = calib_relative_intercept[i]
 
         #if i == 0:
             #flux_reference = flux_coadd[0]
@@ -1132,7 +1135,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     # calib relative 
 
     plt.figure(figsize=(10,6))
-    plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', size = 15)
+    plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration')
     plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline')
     
     plt.xlabel('MJD', fontsize=17)
@@ -1450,6 +1453,27 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.show()
 
+        norm = matplotlib.colors.Normalize(vmin=min(fluxt_stars),vmax=max(fluxt_stars))
+        c_m = matplotlib.cm.plasma
+
+        s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        s_m.set_array([])
+        T = np.linspace(min(fluxt_stars),max(fluxt_stars),nstars)
+
+        columns_mag = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+        columns_magErr = ['base_PsfFlux_magErr_{}'.format(v) for v in visits_aux]
+        fig, axs = plt.subplots(int(np.sqrt(nstars))+1,int(np.sqrt(nstars))+1 , figsize=(10, 6), constrained_layout=True)
+        #fig.set_title('Flux measured on coadd template', fontsize=17)
+        for ax, markevery in zip(axs.flat, range(nstars)):
+            ft_star = (np.array(stars['star_{}_ft'.format(markevery+1)])).flatten() #* scaling
+            ft_star_err = np.ndarray.flatten(np.array(stars['star_{}_fterr'.format(markevery+1)])) #* scaling
+
+            ax.set_title(f'star number {markevery+1}')
+            ax.errorbar(dates_aux, ft_star, yerr = ft_star_err, fmt = 'o', ls='-', color=s_m.to_rgba(fluxt_stars[markevery]))
+        # plotting flxs of stars 
+        #plt.title('Flux measured on coadd template', fontsize=17)
+        plt.show()
+
         plt.figure(figsize=(10,6))
         for i in range(nstars):
             fs_star = (np.array(stars['star_{}_fs'.format(i+1)])).flatten() #* scaling
@@ -1468,7 +1492,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             T = np.linspace(min(fluxt_stars),max(fluxt_stars),nstars)
 
             if len(j)==0:
-                plt.errorbar(dates_aux, ft_star - np.median(ft_star), yerr= ft_star_err, capsize=4, fmt='s', ls='solid', label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxt_stars[i]))
+                plt.errorbar(dates_aux, fs_star - np.median(fs_star), yerr= fs_star_err, capsize=4, fmt='s', ls='solid', label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxt_stars[i]))
         if well_subtracted:
             plt.title('stars LCs in science image from {} and {} with Aperture of {}*FWHM", well subtracted'.format(field, ccd_name[ccd_num], factor_star)) 
         if not well_subtracted:
@@ -1493,8 +1517,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         fig, axs = plt.subplots(int(np.sqrt(nstars))+1,int(np.sqrt(nstars))+1 , figsize=(10, 6), constrained_layout=True)
         #fig.set_title('Flux measured on coadd template', fontsize=17)
         for ax, markevery in zip(axs.flat, range(nstars)):
-            ft_star = (np.array(stars['star_{}_ft'.format(markevery+1)])).flatten() #* scaling
-            ft_star_err = np.ndarray.flatten(np.array(stars['star_{}_fterr'.format(markevery+1)])) #* scaling
+            ft_star = (np.array(stars['star_{}_fs'.format(markevery+1)])).flatten() #* scaling
+            ft_star_err = np.ndarray.flatten(np.array(stars['star_{}_fserr'.format(markevery+1)])) #* scaling
 
             ax.set_title(f'star number {markevery+1}')
             ax.errorbar(dates_aux, ft_star, yerr = ft_star_err, fmt = 'o', ls='-', color=s_m.to_rgba(fluxt_stars[markevery]))
