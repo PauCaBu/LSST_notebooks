@@ -676,7 +676,7 @@ def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
     return dates_aux, visits_aux
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=True, config='SIBLING', verbose=True):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 2, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=True, config='SIBLING', verbose=True):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -922,7 +922,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
         print('exposure Time: ', expTime)
         
-        calib_path = main_path + 'calibration/calibration_scaling_{}_{}.npz'.format(field, ccd_num)
+        calib_path = main_path + 'calibration/calibration_scaling_{}_{}_{}_fwhm.npz'.format(field, ccd_name[ccd_num], factor_star)
         
         #magzero_image = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
         calib_image = photocalib_coadd.getCalibrationMean()
@@ -940,6 +940,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         my_calib_inter.append(calib_intercept)
 
         if not os.path.isfile(calib_path):
+            
             print(calib_path, ' doesnt exist')
             if i == 0:
                 calib = pc.DoCalibration(repo, visits_aux[i], ccd_num, collection_diff, config=config)
@@ -1137,8 +1138,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     # calib relative 
 
     plt.figure(figsize=(10,6))
-    plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration')
-    plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline')
+    plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', linestyle='--')
+    plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline', linestyle='--')
     
     plt.xlabel('MJD', fontsize=17)
     plt.ylabel('Calibration mean', fontsize=17)
@@ -1149,7 +1150,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     # plorrint calib intercept
 
     plt.figure(figsize=(10,6))
-    plt.plot(dates_aux, calib_relative_intercept, '*', color='black', label='My calib')
+    plt.plot(dates_aux, calib_relative_intercept, '*', color='black', label='My calib', linestyle = '--')
     #plt.plot(dates_aux, calib_lsst, 'o', color='blue', label='lsst cal')
     
     plt.xlabel('MJD', fontsize=17)
@@ -1219,7 +1220,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec 
 
             flux_stars_and_errors = []
-            factor_star = 2 #2.5
+            #factor_star = 2 #2.5
             star_aperture = seeing * factor_star #2 # arcsec 
             star_aperture/=pixel_to_arcsec # transform it to pixel values 
 
