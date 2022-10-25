@@ -1,5 +1,7 @@
 from platform import mac_ver
 import platform
+from matplotlib.colors import LogNorm
+import matplotlib.patches as patches
 from pydoc import source_synopsis
 from statistics import median
 from lsst.pipe.tasks.imageDifference import ImageDifferenceTask
@@ -40,6 +42,8 @@ ccd_name = dict(zip(detector_nomenclature.values(), detector_nomenclature.keys()
 sibling_allcand = pd.read_csv('/home/jahumada/testdata_hits/SIBLING_allcand.csv', index_col=0)
 Blind15A_26_magzero_outputs = pd.read_csv('/home/jahumada/testdata_hits/LSST_notebooks/output_magzeros.csv')
 main_path = '/home/jahumada/testdata_hits/LSST_notebooks/'
+
+
 def get_all_exposures(repo, obs_type, instrument='DECam'):
     """
     Gets all the calibrated exposure from a butler REPO as a pandas DataFrame
@@ -798,35 +802,63 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data_cal = np.asarray(calexp.image.array, dtype='float')
         data_coadd = np.asarray(coadd.image.array, dtype='float')
 
+
         
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
         x_pix_coadd, y_pix_coadd = wcs_coadd.skyToPixel(obj_pos_lsst)
         
+        wcs = diffexp.getWcs()
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+
+        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
+        psf = diffexp.getPsf() 
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm # in pixels! 
+        r_aux=r
+
+        psf2 = coadd.getPsf() 
+        seeing2 = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm
+
+        #* pixel_to_arcsec
+        if r == 'seeing':
+            r_aux = seeing * factor
+
         if correct_coord and i==0:
-            plt.show()
+
             print('before centroid correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
 
             sub_data = data_cal[int(y_pix)-box:box+int(y_pix),int(x_pix)-box:box+int(x_pix)]
-            print(sub_data.shape)
-            plt.imshow(sub_data)
-            plt.colorbar()
-            plt.show()
+            
+            #plt.hist(sub_data.flatten(), bins='auto')
+            #plt.xlim(sub_data.min(), 500)
+            #plt.show()
+
+            
+
             sub_data = sub_data.copy(order='C')
             objects = sep.extract(sub_data, 100, minarea=10)
             
             obj = Select_largest_flux(sub_data, objects)
             ox = objects[:]['x']
-            xc = float(obj['x'][0])
-            yc = float(obj['y'][0])
+            xc = float(obj['x'][0]) # x coordinate pixel
+            yc = float(obj['y'][0]) # y coordinate pixel
             
             x_pix = xc + int(x_pix)-box 
             y_pix = yc + int(y_pix)-box
+
             print('after centroid correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
             ra_cor, dec_cor =  wcs.pixelToSkyArray([x_pix], [y_pix], degrees=True)
             ra = ra_cor[0]
-            dec = dec_cor[0]        
-        #plt.show()
+            dec = dec_cor[0]
+            
+            #fig, ax = plt.subplots()
+            
+            plt.imshow(sub_data, norm=LogNorm(), cmap='viridis')
+            plt.colorbar(ticks = [sub_data.min(), 0, 100, 500])
+            plt.scatter(xc,yc, color='r', alpha=0.5, s = r_aux**2 * np.pi)
+            print('coordinates xc, yc: ', xc, yc)
+            plt.show()
+
         ra_center, dec_center = wcs.pixelToSkyArray([px/2], [py/2], degrees=True)
         ra_center = ra_center[0]
         dec_center = dec_center[0]
@@ -859,20 +891,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         visit_date_astropy = Time(visit_date_python)
         print(visit_date_astropy)            
         b = np.nan_to_num(np.array(data))
-        wcs = diffexp.getWcs()
-        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
-
-        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
-        psf = diffexp.getPsf() 
-        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm # in pixels! 
-        r_aux=r
-
-        psf2 = coadd.getPsf() 
-        seeing2 = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm
-
-        #* pixel_to_arcsec
-        if r == 'seeing':
-            r_aux = seeing * factor
+        
 
         print('Aperture radii: {} px'.format(r_aux))
         print('radii for the template: {} px'.format(seeing2*factor))
@@ -1152,7 +1171,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         px = 4096 - 200
         width = px*pixel_to_arcsec
         height = py*pixel_to_arcsec
-        print('width: {} , height : {}'.format(width, height))
+
+        #print('width: {} , height : {}'.format(width, height))
 
         #stars_table = Find_stars(ra_center, dec_center, width, height, nstars, seed=[True, 200])
         stars_table = Inter_Join_Tables_from_LSST(repo, visits, ccd_num, collection_diff)
