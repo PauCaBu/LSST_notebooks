@@ -672,7 +672,7 @@ def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
     return dates_aux, visits_aux
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=True, config='SIBLING'):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=True, config='SIBLING', verbose=True):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -779,15 +779,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     scaling = []
     scaling_coadd = []
     magzero_reference = 0
-    #if collection_coadd != None:
-    #    print('Looking at coadd')
-    #    dataIds = Find_coadd(repo, collection_coadd, ra, dec, instrument=instrument, plot=plot_coadd, cutout=cutout)
-    #    #print(dataIds)
-    #    coadd = butler.get('goodSeeingCoadd', collections=collection_coadd, instrument=instrument, dataId = dataIds[0])
-    #    obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
-    #    coadd_cutout = coadd.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
-    #    coadd_photocalib = coadd.getPhotoCalib()
-    #    zero_set -= coadd_photocalib.getInstFluxAtZeroMagnitude()
 
     dates_aux, visits_aux = Order_Visits_by_Date(repo, visits, ccd_num, collection_diff)
 
@@ -806,15 +797,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data = np.asarray(diffexp.image.array, dtype='float')
         data_cal = np.asarray(calexp.image.array, dtype='float')
         data_coadd = np.asarray(coadd.image.array, dtype='float')
-        
-        #coadd_bkg = (sep.Background(data_coadd)).back()
-        #data_bkg = (sep.Background(data)).back()
-        #data -= data_bkg #here we subtract the backgound og the difference image once again to see what happens
-        #data_coadd -= coadd_bkg
-        
-        #plt.imshow(data_bkg, interpolation='nearest', cmap='gray', origin='lower')
-        #plt.colorbar()
-        #plt.show()
+
         
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
@@ -1227,11 +1210,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 ra_star = RA[i]
                 dec_star = DEC[i]
                 obj_pos_2d_star = lsst.geom.Point2D(ra_star, dec_star)
-                print('⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂ (◕ᴥ◕) -. * STAR {} *.- (◕ᴥ◕) ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑ '.format(i+1))
+                if verbose:
+                    print('⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂ (◕ᴥ◕) -. * STAR {} *.- (◕ᴥ◕) ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑ '.format(i+1))
                 
                 obj_pos_lsst_star = lsst.geom.SpherePoint(ra_star, dec_star, lsst.geom.degrees)
                 x_star, y_star = wcs.skyToPixel(obj_pos_lsst_star)  
-                print('x_pix : {}  y_pix : {}'.format(x_star, y_star))
+                if verbose:
+                    print('x_pix : {}  y_pix : {}'.format(x_star, y_star))
                 
                 if show_star_stamps:
                     Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra_star, dec_star, [visits_aux[j]], ccd_num, s=star_aperture, cutout=80)
@@ -1288,11 +1273,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 flux_stars_and_errors.append(Mag_star_err)
                 flux_stars_and_errors.append(Mag_star_coadd)
                 flux_stars_and_errors.append(Mag_star_coadd_err)
-
-                print('Flux star: {} Error flux: {}'.format(f[0] + ft[0], f_err[0]))
-                print('Flux star in coadd: {} Error flux in coadd: {}'.format(ft[0], ft_err[0]))
-                
-                print('꒰✩ ’ω`ૢ✩꒱ -------------------- ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂')
+                if verbose:
+                    print('Flux star: {} Error flux: {}'.format(f[0] + ft[0], f_err[0]))
+                    print('Flux star in coadd: {} Error flux in coadd: {}'.format(ft[0], ft_err[0]))
+                    
+                    print('꒰✩ ’ω`ૢ✩꒱ -------------------- ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂')
             
             stars.loc[len(stars.index)] = flux_stars_and_errors
         field = collection_diff[13:24]
