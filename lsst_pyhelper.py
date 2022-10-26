@@ -948,11 +948,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
 
                 calib_mean0 = calib[0]#calib_mean
-                calib_intercept0 = calib[1]#calib_intercept
+                calib_intercept0 = 0 #calib[1]#calib_intercept
             
             calib_rel = pc.DoRelativeCalibration(repo, visits_aux[0], calib_mean0, calib_intercept0, visits_aux[i], ccd_num, collection_diff, config=config) 
             calibRel_mean = calib_rel[0]
-            calibRel_intercept = calib_rel[1]
+            calibRel_intercept = 0 #calib_rel[1]
 
             calib_relative.append(calibRel_mean)
             calib_relative_intercept.append(calibRel_intercept)
