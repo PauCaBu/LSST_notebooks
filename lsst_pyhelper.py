@@ -787,6 +787,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     dates_aux, visits_aux = Order_Visits_by_Date(repo, visits, ccd_num, collection_diff)
 
     for i in range(len(visits_aux)):
+        #print('hello im a branch jiji')
         zero_set_aux = zero_set
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         calexp = butler.get('calexp', visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
@@ -941,14 +942,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         if not os.path.isfile(calib_path):
             
-            print(calib_path, ' doesnt exist')
+            #print(calib_path, ' doesnt exist')
             if i == 0:
-                calib = pc.DoCalibration(repo, visits_aux[i], ccd_num, collection_diff, config=config)
+                calib = pc.DoCalibration(repo, visits_aux[0], ccd_num, collection_diff, config=config) 
+
 
                 calib_mean0 = calib[0]#calib_mean
                 calib_intercept0 = calib[1]#calib_intercept
             
-            calib_rel = pc.DoRelativeCalibration(repo, visits_aux[0], calib_mean0, calib_intercept0, visits_aux[i], ccd_num, collection_diff, config='SIBLING')
+            calib_rel = pc.DoRelativeCalibration(repo, visits_aux[0], calib_mean0, calib_intercept0, visits_aux[i], ccd_num, collection_diff, config=config) 
             calibRel_mean = calib_rel[0]
             calibRel_intercept = calib_rel[1]
 
@@ -1132,7 +1134,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #plt.legend()
     #plt.show()
     if not os.path.isfile(calib_path):
-        np.savez('calibration/calibration_scaling_{}_{}'.format(field, ccd_num), x = calib_relative, y = calib_relative_intercept)
+        np.savez(calib_path, x = calib_relative, y = calib_relative_intercept)
         #calib_relative.savez('calibration/calibration_scaling_{}_{}'.format(field, ccd_num))
         #calib_relative_intercept.savez('calibration/calibration_scaling_inter_{}_{}'.format(field, ccd_num))
     # calib relative 
