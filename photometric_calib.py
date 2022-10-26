@@ -773,7 +773,7 @@ def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
     LSST_stars_to_pandas = LSST_stars_to_pandas.reset_index()
 
     calexp = butler.get('calexp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
-    coadd = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    #coadd = butler.get('goodSeeingDiff_matchedExp',visit=visit, detector=ccdnum , collections=collection_diff, instrument='DECam')
     df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag','Panstarss_dr1_flx', 'calculated_byme_flx', 'seeing','m_inst', 'airmass', 'expoTime'])
     #print('LSST stars df: ', LSST_stars)
     for i in range(len(LSST_stars_to_pandas)):
@@ -798,16 +798,16 @@ def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
         # calculated by me using Source Extractor 
         obj_pos_lsst = lsst.geom.SpherePoint(ra_star, dec_star, lsst.geom.degrees)
         obj_pos_2d = lsst.geom.Point2D(ra_star, dec_star)
-        wcs = coadd.getWcs()
+        wcs = calexp.getWcs()
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
-        data = np.asarray(coadd.image.array, dtype='float')
-        psf = coadd.getPsf()
+        data = np.asarray(calexp.image.array, dtype='float')
+        psf = calexp.getPsf()
         sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
         pixel_to_arcsec = 0.2626 #arcsec/pixel 
         seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec
         r = seeing*2
         r/=pixel_to_arcsec
-        flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(coadd.variance.array, dtype='float'))
+        flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r=r, var = np.asarray(calexp.variance.array, dtype='float'))
         calc_flx = flux[0]
 
         # m_instrumental 
@@ -825,7 +825,7 @@ def get_fluxes_from_stars(repo, visit, ccdnum, collection_diff):
 
 def DoCalibration(repo, visit, ccdnum, collection_diff, config='SIBLING'):
     """
-    Calibrate stars 
+    Calibrate stars doing a Huber regression 
     """
     stars = get_fluxes_from_stars(repo, visit, ccdnum, collection_diff)
     print('Doing photometric calibration with {} stars'.format(len(stars)))
@@ -887,8 +887,8 @@ def DoRelativeCalibration(repo, visit1, calib_mean, calib_intercept, visit2, ccd
     stars = lp.Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted=False)
     print('Doing photometric calibration with {} stars'.format(len(stars)))
     #print(stars[['coord_ra_ddegrees', 'coord_dec_ddegrees']])
-    coadd1 = butler.get('goodSeeingDiff_matchedExp',visit=visit1, detector=ccdnum , collections=collection_diff, instrument='DECam')
-    coadd2 = butler.get('goodSeeingDiff_matchedExp',visit=visit2, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    coadd1 = butler.get('calexp',visit=visit1, detector=ccdnum , collections=collection_diff, instrument='DECam')
+    coadd2 = butler.get('calexp',visit=visit2, detector=ccdnum , collections=collection_diff, instrument='DECam')
     df = pd.DataFrame(columns=['ra', 'dec','Panstarss_dr1_mag','Panstarss_dr1_flx', 'calculated_byme_flx1', 'calculated_byme_flx2'])
 
     for i in range(len(stars)):
