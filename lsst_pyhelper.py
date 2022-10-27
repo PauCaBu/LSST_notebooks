@@ -823,6 +823,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #* pixel_to_arcsec
         if r == 'seeing':
             r_aux = seeing * factor
+        Seeing.append(seeing)
 
         if correct_coord and i==0:
 
@@ -1037,7 +1038,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #phot = pc.mag_stars_calculation(repo, visits[i], ccd_num, collection_diff)
         #DF = phot['DataFrame']
         #seeing = np.unique(np.array(DF.seeing))[0]
-        #Seeing.append(seeing)
+        
         #alpha_scaling = phot['panstarss_counts']/phot['calcbyme_counts']
         #scale_coadd = phot['calcbyme_counts']/phot['calcbyme_counts_coadd']
         #print('alpha scaling: ', alpha_scaling)
@@ -1165,6 +1166,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     plt.title('Airmass', fontsize=17)
     plt.xlabel('MJD', fontsize=17)
     plt.ylabel('Airmass', fontsize=17)
+    plt.show()
+
+    # Seeing plot
+    plt.figure(figsize=(10,6))
+    plt.plot(dates_aux, Seeing, 'o', color='magenta', linestyle='--')
+    plt.title('FWHM observation', fontsize=17)
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('FWHM', fontsize=17)
     plt.show()
 
     if do_lc_stars == True:
