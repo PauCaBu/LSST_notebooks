@@ -767,8 +767,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     pixel_to_arcsec = 0.2626 #arcsec/pixel, value from Manual of NOAO - DECam
     
     r_in_arcsec = r 
-    if type(r) != str:
-        r/=pixel_to_arcsec
+    #if type(r) != str:
+    #    r_aux = r/pixel_to_arcsec
 
     flux_reference = 0
     calib_reference = 0 
@@ -823,6 +823,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #* pixel_to_arcsec
         if r == 'seeing':
             r_aux = seeing * factor
+        else:
+            r_aux = r/pixel_to_arcsec
+            
         Seeing.append(seeing)
 
         if correct_coord and i==0:
@@ -924,43 +927,43 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
         print('exposure Time: ', expTime)
         
-        calib_path = main_path + 'calibration/calibration_scaling_{}_{}_{}_fwhm.npz'.format(field, ccd_name[ccd_num], factor_star)
+        #calib_path = main_path + 'calibration/calibration_scaling_{}_{}_{}_fwhm.npz'.format(field, ccd_name[ccd_num], factor_star)
         
         #magzero_image = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
-        calib_image = photocalib_coadd.getCalibrationMean()
-        calib_image_err = photocalib_coadd.getCalibrationErr()
+        calib_image = photocalib_cal.getCalibrationMean()
+        calib_image_err = photocalib_cal.getCalibrationErr()
         calib_lsst.append(calib_image)
         calib_lsst_err.append(calib_image_err)
 
 
         print('calibration mean: ', calib_image)
         #calib = pc.DoCalibration(repo, visits_aux[i], ccd_num, collection_diff, config=config)
-        calib_mean = 1#calib[0]
-        calib_intercept = 0#calib[1]
+        #calib_mean = 1#calib[0]
+        #calib_intercept = 0#calib[1]
         
-        my_calib.append(calib_mean)
-        my_calib_inter.append(calib_intercept)
+        #my_calib.append(calib_mean)
+        #my_calib_inter.append(calib_intercept)
 
-        if not os.path.isfile(calib_path):
-            
-            #print(calib_path, ' doesnt exist')
-            if i == 0:
-                calib = pc.DoCalibration(repo, visits_aux[0], ccd_num, collection_diff, config=config) 
-                calib_mean0 = calib[0] #calib_mean
-                calib_intercept0 = calib[1] #calib_intercept
-            
-            calib_rel = pc.DoRelativeCalibration(repo, visits_aux[0], calib_mean0, calib_intercept0, visits_aux[i], ccd_num, collection_diff, config=config) 
-            calibRel_mean = calib_rel[0]
-            calibRel_intercept = calib_rel[1]
+        #if not os.path.isfile(calib_path):
+        #    
+        #    #print(calib_path, ' doesnt exist')
+        #    if i == 0:
+        #        calib = pc.DoCalibration(repo, visits_aux[0], ccd_num, collection_diff, config=config) 
+        #        calib_mean0 = calib[0] #calib_mean
+        #        calib_intercept0 = calib[1] #calib_intercept
+        #    
+        #    calib_rel = pc.DoRelativeCalibration(repo, visits_aux[0], calib_mean0, calib_intercept0, visits_aux[i], ccd_num, collection_diff, config=config) 
+        #    calibRel_mean = calib_rel[0]
+        #    calibRel_intercept = calib_rel[1]
 
-            calib_relative.append(calibRel_mean)
-            calib_relative_intercept.append(calibRel_intercept)
-        else:
-            npzfile = np.load(calib_path)
-            calib_relative = npzfile['x']
-            calib_relative_intercept= npzfile['y'] #np.zeros(len(calib_relative)) #
-            calibRel_mean = calib_relative[i]
-            calibRel_intercept = calib_relative_intercept[i]
+        #    calib_relative.append(calibRel_mean)
+        #    calib_relative_intercept.append(calibRel_intercept)
+        #else:
+        #    npzfile = np.load(calib_path)
+        #    calib_relative = npzfile['x']
+        #    calib_relative_intercept= npzfile['y'] #np.zeros(len(calib_relative)) #
+        #    calibRel_mean = calib_relative[i]
+        #    calibRel_intercept = calib_relative_intercept[i]
 
         #if i == 0:
             #flux_reference = flux_coadd[0]
@@ -979,13 +982,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         # Here I try my calibration: 
 
-        flux_jsky = flux[0] * calibRel_mean + calibRel_intercept #flux_physical.value
-        fluxerr_jsky = fluxerr[0] * calibRel_mean  #flux_physical.error
+        flux_jsky = flux[0] * calib_image #+ calibRel_intercept #flux_physical.value
+        fluxerr_jsky = fluxerr[0] * calib_image  #flux_physical.error
 
         flux_physical_coadd = photocalib_coadd.instFluxToNanojansky(flux_coadd[0], fluxerr_coadd[0], obj_pos_2d)
 
-        flux_jsky_coadd = flux_coadd[0]*calibRel_mean + calibRel_intercept#flux_physical_coadd.value 
-        fluxerr_jsky_coadd = fluxerr_coadd[0]*calibRel_mean #flux_physical_coadd.error
+        flux_jsky_coadd = flux_coadd[0] * calib_image #+ calibRel_intercept#flux_physical_coadd.value 
+        fluxerr_jsky_coadd = fluxerr_coadd[0] * calib_image #flux_physical_coadd.error
 
         magzero.append(flux_jsky_coadd/flux_coadd[0])
         #scaler = flux_reference/flux_jsky_coadd
@@ -996,8 +999,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #fluxerr_jsky_coadd*=scaler
         
         #flux_physical_cal = photocalib_cal.instFluxToNanojansky(flux_cal[0], fluxerr_cal[0], obj_pos_2d)
-        flux_jsky_cal = flux_cal[0] * calibRel_mean + calibRel_intercept#flux_physical_cal.value 
-        fluxerr_jsky_cal = fluxerr_cal[0] * calibRel_mean #flux_physical_cal.error 
+        flux_jsky_cal = flux_cal[0] * calib_image #+ calibRel_intercept#flux_physical_cal.value 
+        fluxerr_jsky_cal = fluxerr_cal[0] * calib_image #flux_physical_cal.error 
 
 
         f = (flux_jsky + flux_jsky_coadd)*1e-9 
@@ -1132,14 +1135,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #plt.title('Calibration scaling intercept', fontsize=17)
     #plt.legend()
     #plt.show()
-    if not os.path.isfile(calib_path):
-        np.savez(calib_path, x = calib_relative, y = calib_relative_intercept)
+    #if not os.path.isfile(calib_path):
+    #    np.savez(calib_path, x = calib_relative, y = calib_relative_intercept)
         #calib_relative.savez('calibration/calibration_scaling_{}_{}'.format(field, ccd_num))
         #calib_relative_intercept.savez('calibration/calibration_scaling_inter_{}_{}'.format(field, ccd_num))
     # calib relative 
 
     plt.figure(figsize=(10,6))
-    plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', linestyle='--')
+    #plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', linestyle='--')
     plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline', linestyle='--')
     
     plt.xlabel('MJD', fontsize=17)
@@ -1150,15 +1153,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     # plorrint calib intercept
 
-    plt.figure(figsize=(10,6))
-    plt.plot(dates_aux, calib_relative_intercept, '*', color='black', label='My calib', linestyle = '--')
+    #plt.figure(figsize=(10,6))
+    #plt.plot(dates_aux, calib_relative_intercept, '*', color='black', label='My calib', linestyle = '--')
     #plt.plot(dates_aux, calib_lsst, 'o', color='blue', label='lsst cal')
     
-    plt.xlabel('MJD', fontsize=17)
-    plt.ylabel('Calibration intercept', fontsize=17)
-    plt.title('Calibration scaling intercept relative to first visit', fontsize=17)
-    plt.legend()
-    plt.show()
+    #plt.xlabel('MJD', fontsize=17)
+    #plt.ylabel('Calibration intercept', fontsize=17)
+    #plt.title('Calibration scaling intercept relative to first visit', fontsize=17)
+    #plt.legend()
+    #plt.show()
 
     # Airmass plot
     plt.figure(figsize=(10,6))
@@ -1280,22 +1283,22 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 #Mag_star_coadd_err = Magstars_coadd[1]
 
                 # Using my calibration  
+                
+                flux_stars_and_errors.append(f[0]*calib_lsst[j])
+                flux_stars_and_errors.append(f_err[0]*calib_lsst[j])
+                flux_stars_and_errors.append(ft[0]*calib_lsst[j])
+                flux_stars_and_errors.append(ft_err[0]*calib_lsst[j])
+                flux_stars_and_errors.append(fs[0]*calib_lsst[j])
+                flux_stars_and_errors.append(fs_err[0]*calib_lsst[j])
 
-                flux_stars_and_errors.append(f[0]*calib_relative[j] + calib_relative_intercept[j])
-                flux_stars_and_errors.append(f_err[0]*calib_relative[j])
-                flux_stars_and_errors.append(ft[0]*calib_relative[j]+ calib_relative_intercept[j])
-                flux_stars_and_errors.append(ft_err[0]*calib_relative[j])
-                flux_stars_and_errors.append(fs[0]*calib_relative[j]+ calib_relative_intercept[j])
-                flux_stars_and_errors.append(fs_err[0]*calib_relative[j])
-
-                Fstar = np.array((f[0]*calib_relative[j] +calib_relative_intercept[j] + ft[0]*calib_relative[j]+ calib_relative_intercept[j])) #flux [nJy]
-                Fstar_err = np.sqrt((ft_err[0]*calib_relative[j])**2 + (f_err[0]*calib_relative[j])**2) #flux [nJy]
+                Fstar = np.array((f[0]*calib_lsst[j] + ft[0]*calib_lsst[j])) #flux [nJy]
+                Fstar_err = np.sqrt((ft_err[0]*calib_lsst[j])**2 + (f_err[0]*calib_lsst[j])**2) #flux [nJy]
 
                 Magstars = pc.FluxJyToABMag(Fstar*1e-9, Fstar_err*1e-9)
                 Mag_star = Magstars[0]
                 Mag_star_err = Magstars[1]
 
-                Magstars_coadd = pc.FluxJyToABMag(ft[0]*calib_relative[j]*1e-9+ calib_relative_intercept[j]*1e-9, ft_err[0]*calib_relative[j]*1e-9)
+                Magstars_coadd = pc.FluxJyToABMag(ft[0]**calib_lsst[j]*1e-9, ft_err[0]**calib_lsst[j]*1e-9)
                 Mag_star_coadd = Magstars_coadd[0]
                 Mag_star_coadd_err = Magstars_coadd[1]
                 
