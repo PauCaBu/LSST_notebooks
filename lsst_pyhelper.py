@@ -438,6 +438,7 @@ def Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra, dec, visits, cc
         stamp_display[2].scale('asinh', -10, 10)
         stamp_display[2].mtv(coadd_cutout.maskedImage)
         stamp_display[2].dot('o', x_pix, y_pix, ctype='#0827F5', size=s)
+        
         plt.title('Coadd template')
 
         
@@ -448,6 +449,118 @@ def Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra, dec, visits, cc
         
     return
 
+
+def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20):
+    """
+    Plots the calibrated and difference-imaged exposure cropped to the location of ra,dec
+    -----
+    Input
+    -----
+    repo : [string] directory of the butler repository 
+    collection_diff : [string] name of the difference imaging collection
+    collection_calexp : [string] name of the calibrated exposures collection
+    ra : [float] right ascention coordinate in decimal degrees
+    dec : [float] declination coordinate in decimal degrees
+    visits : [ndarray] list of visits
+    ccd_num : [int]
+    cutout : [int]
+    s : [int] circular display 
+    -----
+    Output
+    -----
+    None
+    
+    """
+    if visits==[]:
+        print("No visits submitted")
+        return
+    butler = Butler(repo)
+    for i in range(len(visits)):
+        obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+        calexp = butler.get('calexp', visit= visits[i], detector= ccd_num, instrument='DECam', collections=collection_diff)
+        calexp_im = calexp.getMaskedImage()
+        calexp_cat = butler.get('src', visit= visits[i], detector= ccd_num, instrument='DECam', collections=collection_diff)
+        coadd = butler.get('goodSeeingDiff_matchedExp', visit=visits[i], detector=ccd_num, collections=collection_diff, instrument='DECam')
+        diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+        diffexp_cat = butler.get('goodSeeingDiff_diaSrc',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+                 
+        afwDisplay.setDefaultMaskTransparency(100)
+        afwDisplay.setDefaultBackend('matplotlib')
+        wcs = diffexp.getWcs()
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        x_half_width = cutout
+        y_half_width = cutout
+        bbox = lsst.geom.Box2I()
+        bbox.include(lsst.geom.Point2I(x_pix - x_half_width, y_pix - y_half_width))
+        bbox.include(lsst.geom.Point2I(x_pix + x_half_width, y_pix + y_half_width))
+
+        calexp_cutout = calexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+        diffexp_cutout = diffexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+        coadd_cutout = coadd.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+
+        calexp_cutout_arr = np.asarray(calexp_cutout.image.array, dtype='float')
+        diffexp_cutout_arr = np.asarray(diffexp_cutout.image.array, dtype='float')
+        coadd_cutout_arr = np.asarray(coadd_cutout.image.array, dtype='float')
+
+        print('calexp data matrix: ', calexp_cutout_arr)
+
+        fig = plt.figure(figsize=(16, 5))
+
+        stamp_display = []
+
+        fig.add_subplot(1,3,1)
+        plt.imshow(calexp_cutout_arr)
+        plt.contour(calexp_cutout_arr, levels=np.logspace(-5, 2, 10), colors ='white', alpha=0.5)
+
+        #stamp_display.append(afwDisplay.Display(frame=fig))
+        #stamp_display[0].scale('asinh', -10, 10)
+        #stamp_display[0].mtv(calexp_cutout.maskedImage)
+        #stamp_display[0].dot('o', x_pix, y_pix, ctype='#0827F5', size=s)
+
+        #with stamp_display[0].Buffering():
+        #    for j in calexp_cat[calexp_cat['calib_psf_used']]:
+        #         stamp_display[0].dot("x", j.getX(), j.getY(), size=10, ctype="red")
+
+        #for src in calexp_cat:
+        #    stamp_display[0].dot('o', src.getX(), src.getY(), ctype='cyan', size=4)
+        plt.title('Calexp Image and Source Catalog')
+
+        fig.add_subplot(1,3,2)
+        plt.imshow(diffexp_cutout_arr)
+
+        plt.contour(diffexp_cutout_arr, levels=np.logspace(-5, 2, 10), colors ='white', alpha=0.5)
+        #stamp_display.append(afwDisplay.Display(frame=fig))
+        #stamp_display[0].scale('asinh', -10,10)
+        #stamp_display[0].mtv(diffexp_cutout.maskedImage)
+
+
+        #stamp_display[1].dot('o', x_pix, y_pix, ctype='#0827F5', size=s)
+
+        #for src in diffexp_cat:
+        #    stamp_display[1].dot('o', src.getX(), src.getY(), ctype='cyan', size=4)
+        #    if np.fabs(x_pix - src.getX())<cutout and np.fabs(y_pix - src.getY())<cutout:
+        #        print('from catalog that is within the : {} {}'.format(src.getX(), src.getY()))
+        plt.title('Diffexp Image and Source Catalog')
+
+        fig.add_subplot(1,3,3)
+        plt.imshow(coadd_cutout_arr)
+        plt.contour(coadd_cutout_arr, levels=np.logspace(-5, 2, 10), colors ='white', alpha=0.5)
+        
+
+        #stamp_display.append(afwDisplay.Display(frame=fig))
+        #stamp_display[2].scale('asinh', -10, 10)
+        #stamp_display[2].mtv(coadd_cutout.maskedImage)
+        #stamp_display[2].dot('o', x_pix, y_pix, ctype='#0827F5', size=s)
+        
+        plt.title('Coadd template')
+
+        
+
+        plt.tight_layout()
+        plt.show()
+        
+        
+    return
 
 
 def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, visits, ccd_num, cutout=40, s=20, save_stamps=False, save_as=''):
@@ -825,7 +938,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             r_aux = seeing * factor
         else:
             r_aux = r/pixel_to_arcsec
-            
+
         Seeing.append(seeing)
 
         if correct_coord and i==0:
@@ -903,7 +1016,20 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         # Doing photometry step 
 
-        #photocalib.calibrateImage(calexp.getMaskedImage())
+        photocalib = diffexp.getPhotoCalib()
+        photocalib_cal = calexp.getPhotoCalib()
+        photocalib_coadd = coadd.getPhotoCalib()
+
+        calib_image = photocalib_cal.getCalibrationMean()
+        calib_image_err = photocalib_cal.getCalibrationErr()
+        calib_lsst.append(calib_image)
+        calib_lsst_err.append(calib_image_err)
+
+        print('Calibration Mean of Difference: ', photocalib.getCalibrationMean())
+        print('Calibration Mean of Science: ', photocalib_cal.getCalibrationMean())
+        print('Calibration Mean of Template: ', photocalib_coadd.getCalibrationMean())
+
+        #r_aux*=calib_image
 
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r_aux, var = np.asarray(diffexp.variance.array, dtype='float'))
         flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(diffexp.variance.array, dtype='float'))
@@ -917,12 +1043,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         if show_stamps:
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
-            Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
+            Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
        
 
-        photocalib = diffexp.getPhotoCalib()
-        photocalib_cal = calexp.getPhotoCalib()
-        photocalib_coadd = coadd.getPhotoCalib()
+        
 
         expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
         print('exposure Time: ', expTime)
@@ -930,10 +1054,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #calib_path = main_path + 'calibration/calibration_scaling_{}_{}_{}_fwhm.npz'.format(field, ccd_name[ccd_num], factor_star)
         
         #magzero_image = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
-        calib_image = photocalib_cal.getCalibrationMean()
-        calib_image_err = photocalib_cal.getCalibrationErr()
-        calib_lsst.append(calib_image)
-        calib_lsst_err.append(calib_image_err)
+        
 
 
         print('calibration mean: ', calib_image)
@@ -982,13 +1103,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         # Here I try my calibration: 
 
-        flux_jsky = flux[0] * calib_image #+ calibRel_intercept #flux_physical.value
-        fluxerr_jsky = fluxerr[0] * calib_image  #flux_physical.error
+        flux_jsky = flux_physical.value
+        fluxerr_jsky = flux_physical.error
 
         flux_physical_coadd = photocalib_coadd.instFluxToNanojansky(flux_coadd[0], fluxerr_coadd[0], obj_pos_2d)
 
-        flux_jsky_coadd = flux_coadd[0] * calib_image #+ calibRel_intercept#flux_physical_coadd.value 
-        fluxerr_jsky_coadd = fluxerr_coadd[0] * calib_image #flux_physical_coadd.error
+        flux_jsky_coadd = flux_physical_coadd.value 
+        fluxerr_jsky_coadd = flux_physical_coadd.error
 
         magzero.append(flux_jsky_coadd/flux_coadd[0])
         #scaler = flux_reference/flux_jsky_coadd
@@ -998,9 +1119,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #fluxerr_jsky*=scaler
         #fluxerr_jsky_coadd*=scaler
         
-        #flux_physical_cal = photocalib_cal.instFluxToNanojansky(flux_cal[0], fluxerr_cal[0], obj_pos_2d)
-        flux_jsky_cal = flux_cal[0] * calib_image #+ calibRel_intercept#flux_physical_cal.value 
-        fluxerr_jsky_cal = fluxerr_cal[0] * calib_image #flux_physical_cal.error 
+        flux_physical_cal = photocalib_cal.instFluxToNanojansky(flux_cal[0], fluxerr_cal[0], obj_pos_2d)
+        flux_jsky_cal = flux_physical_cal.value 
+        fluxerr_jsky_cal = flux_physical_cal.error 
 
 
         f = (flux_jsky + flux_jsky_coadd)*1e-9 
@@ -1306,6 +1427,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 flux_stars_and_errors.append(Mag_star_err)
                 flux_stars_and_errors.append(Mag_star_coadd)
                 flux_stars_and_errors.append(Mag_star_coadd_err)
+
+                ###########
                 if verbose:
                     print('Flux star: {} Error flux: {}'.format(f[0] + ft[0], f_err[0]))
                     print('Flux star in coadd: {} Error flux in coadd: {}'.format(ft[0], ft_err[0]))
@@ -1599,9 +1722,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     plt.figure(figsize=(10,6))
 
 
-    if SIBLING!=None and sfx == 'mag':
+    if SIBLING!=None and sfx == 'flx':
         x, y, yerr = compare_to(SIBLING, sfx=sfx, factor=factor)
-        plt.errorbar(x-min(x),y, yerr=yerr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
+        f, ferr = pc.ABMagToFlux(y, yerr)
+        plt.errorbar(x-min(x),f, yerr=ferr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
     #plt.show()
 
@@ -1736,7 +1860,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     print(source_of_interest)
     return source_of_interest
 
-def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, sfx='flx', show_star_stamps = False, show_stamps=False, factor=1, well_subtracted=True):
+def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, sfx='flx', show_star_stamps = False, show_stamps=False, factor=1, well_subtracted=True, factor_star=2):
     """
     plots all sources located in a field
 
@@ -1767,7 +1891,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
             name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_calibLsst').replace('.', '_')
-            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r='seeing', factor=factor, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=10, well_subtracted=well_subtracted, field=field)
+            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r='seeing', factor=factor, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=10, well_subtracted=well_subtracted, field=field, factor_star = factor_star)
             
             if len(df) != 0 or type(df)!=None:
 
