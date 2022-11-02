@@ -1,5 +1,6 @@
 from platform import mac_ver
 import platform
+import plotly.express as px
 from matplotlib.colors import LogNorm
 import matplotlib.patches as patches
 from pydoc import source_synopsis
@@ -502,59 +503,40 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         diffexp_cutout_arr = np.asarray(diffexp_cutout.image.array, dtype='float')
         coadd_cutout_arr = np.asarray(coadd_cutout.image.array, dtype='float')
 
-        #print('calexp data matrix: ', calexp_cutout_arr)
-
         fig = plt.figure(figsize=(16, 5))
 
         stamp_display = []
 
         fig.add_subplot(1,3,1)
         plt.imshow(calexp_cutout_arr)
-        plt.contour(calexp_cutout_arr, levels=np.logspace(1, 3, 10), colors ='white', alpha=0.5)
-
-        #stamp_display.append(afwDisplay.Display(frame=fig))
-        #stamp_display[0].scale('asinh', -10, 10)
-        #stamp_display[0].mtv(calexp_cutout.maskedImage)
-        #stamp_display[0].dot('o', x_pix, y_pix, ctype='#0827F5', size=s)
-
-        #with stamp_display[0].Buffering():
-        #    for j in calexp_cat[calexp_cat['calib_psf_used']]:
-        #         stamp_display[0].dot("x", j.getX(), j.getY(), size=10, ctype="red")
-
-        #for src in calexp_cat:
-        #    stamp_display[0].dot('o', src.getX(), src.getY(), ctype='cyan', size=4)
+        plt.colorbar()
+        plt.contour(calexp_cutout_arr, levels=np.logspace(1.3, 3.3, 10), colors ='white', alpha=0.5)
+        circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
+        plt.gca().add_patch(circle)
+        
         plt.title('Calexp Image and Source Catalog')
 
         fig.add_subplot(1,3,2)
+
         plt.imshow(diffexp_cutout_arr)
+        plt.colorbar()
+        plt.contour(diffexp_cutout_arr, levels=np.logspace(1.3, 2.2, 10), colors ='white', alpha=0.5)
 
-        plt.contour(diffexp_cutout_arr, levels=np.logspace(-5, 2, 10), colors ='white', alpha=0.5)
-        #stamp_display.append(afwDisplay.Display(frame=fig))
-        #stamp_display[0].scale('asinh', -10,10)
-        #stamp_display[0].mtv(diffexp_cutout.maskedImage)
+        #plt.scatter(x_half_width, y_half_width, s=np.pi*s**2, facecolors='none', edgecolors='red')
+        circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
+        plt.gca().add_patch(circle)
 
-
-        #stamp_display[1].dot('o', x_pix, y_pix, ctype='#0827F5', size=s)
-
-        #for src in diffexp_cat:
-        #    stamp_display[1].dot('o', src.getX(), src.getY(), ctype='cyan', size=4)
-        #    if np.fabs(x_pix - src.getX())<cutout and np.fabs(y_pix - src.getY())<cutout:
-        #        print('from catalog that is within the : {} {}'.format(src.getX(), src.getY()))
         plt.title('Diffexp Image and Source Catalog')
 
         fig.add_subplot(1,3,3)
         plt.imshow(coadd_cutout_arr)
-        plt.contour(coadd_cutout_arr, levels=np.logspace(-5, 2, 10), colors ='white', alpha=0.5)
-        
+        plt.colorbar()
+        plt.contour(coadd_cutout_arr, levels=np.logspace(1.3, 3.3, 10), colors ='white', alpha=0.5)
 
-        #stamp_display.append(afwDisplay.Display(frame=fig))
-        #stamp_display[2].scale('asinh', -10, 10)
-        #stamp_display[2].mtv(coadd_cutout.maskedImage)
-        #stamp_display[2].dot('o', x_pix, y_pix, ctype='#0827F5', size=s)
-        
+        #plt.scatter(x_half_width, y_half_width, s=np.pi*s**2, facecolors='none', edgecolors='red')
+        circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
+        plt.gca().add_patch(circle)
         plt.title('Coadd template')
-
-        
 
         plt.tight_layout()
         plt.show()
@@ -1025,9 +1007,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         calib_lsst.append(calib_image)
         calib_lsst_err.append(calib_image_err)
 
-        print('Calibration Mean of Difference: ', photocalib.getCalibrationMean())
-        print('Calibration Mean of Science: ', photocalib_cal.getCalibrationMean())
-        print('Calibration Mean of Template: ', photocalib_coadd.getCalibrationMean())
+        #print('Calibration Mean of Difference: ', photocalib.getCalibrationMean())
+        #print('Calibration Mean of Science: ', photocalib_cal.getCalibrationMean())
+        #print('Calibration Mean of Template: ', photocalib_coadd.getCalibrationMean())
 
         #r_aux*=calib_image
 
@@ -1043,6 +1025,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         if show_stamps:
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
+            print('aperture that enters stamp plots: ', r_aux)
             Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
        
 
@@ -1723,9 +1706,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
 
     if SIBLING!=None and sfx == 'flx':
-        x, y, yerr = compare_to(SIBLING, sfx=sfx, factor=0.75)
+        x, y, yerr = compare_to(SIBLING, sfx='mag', factor=0.75)
         f, ferr = pc.ABMagToFlux(y, yerr)
-        plt.errorbar(x-min(x),f, yerr=ferr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
+        plt.errorbar(x-min(x),f - np.median(f), yerr=ferr,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
     #plt.show()
 
@@ -2708,13 +2691,13 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
         sfx_aux = 'mag'
         if factor==0.5:
             
-            param = Jorge_LC['aperture_{}_0'.format(sfx_aux)]
-            param_err = Jorge_LC['aperture_{}_err_0'.format(sfx_aux)]
+            param = Jorge_LC['aperture_{}_0'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_0'.format(sfx)]
             median_jorge=np.median(param)
-            if sfx == 'flx':
-                fluxes_and_err = pc.ABMagToFlux(param, param_err)
-                param = fluxes_and_err[0]
-                param_err = fluxes_and_err[1]
+            #if sfx == 'flx':
+            #    fluxes_and_err = pc.ABMagToFlux(param, param_err)
+            #    param = fluxes_and_err[0]
+            #    param_err = fluxes_and_err[1]
             #    param = 
             #    median_jorge=0 
             #
@@ -2727,14 +2710,14 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
         if factor==0.75:
 
             
-            param = Jorge_LC['aperture_{}_1'.format(sfx_aux)]
-            param_err = Jorge_LC['aperture_{}_err_1'.format(sfx_aux)]
+            param = Jorge_LC['aperture_{}_1'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_1'.format(sfx)]
             median_jorge = np.median(param)
             mean = np.mean(param)
-            if sfx == 'flx':
-                fluxes_and_err = pc.ABMagToFlux(param, param_err)
-                param = fluxes_and_err[0]
-                param_err = fluxes_and_err[1]
+            #if sfx == 'flx':
+            #    fluxes_and_err = pc.ABMagToFlux(param, param_err)
+            #    param = fluxes_and_err[0]
+            #    param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
@@ -2743,16 +2726,16 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
 
         if factor==1:
             
-            param = Jorge_LC['aperture_{}_2'.format(sfx_aux)]
-            param_err = Jorge_LC['aperture_{}_err_2'.format(sfx_aux)]
+            param = Jorge_LC['aperture_{}_2'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_2'.format(sfx)]
             mean = np.mean(param)
             norm = np.linalg.norm(np.array(param))
             median_jorge = np.median(param)
 
-            if sfx == 'flx':
-                fluxes_and_err = pc.ABMagToFlux(param, param_err)
-                param = fluxes_and_err[0]
-                param_err = fluxes_and_err[1]
+            #if sfx == 'flx':
+            #    fluxes_and_err = pc.ABMagToFlux(param, param_err)
+            #    param = fluxes_and_err[0]
+            #    param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
@@ -2761,14 +2744,14 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - mean, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==1.25:
             #std = np.std(Jorge_LC.aperture_flx_3)
-            param = Jorge_LC['aperture_{}_3'.format(sfx_aux)]
-            param_err = Jorge_LC['aperture_{}_err_3'.format(sfx_aux)]
+            param = Jorge_LC['aperture_{}_3'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_3'.format(sfx)]
             mean = np.mean(param)
             median_jorge= np.median(param)
-            if sfx == 'flx':
-                fluxes_and_err = pc.ABMagToFlux(param, param_err)
-                param = fluxes_and_err[0]
-                param_err = fluxes_and_err[1]
+            #if sfx == 'flx':
+            #    fluxes_and_err = pc.ABMagToFlux(param, param_err)
+            #    param = fluxes_and_err[0]
+            #    param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
@@ -2778,16 +2761,16 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
         if factor==1.5:
             #std = np.std(Jorge_LC.aperture_flx_4)
             
-            param = Jorge_LC['aperture_{}_4'.format(sfx_aux)]
-            param_err = Jorge_LC['aperture_{}_err_4'.format(sfx_aux)]             
+            param = Jorge_LC['aperture_{}_4'.format(sfx)]
+            param_err = Jorge_LC['aperture_{}_err_4'.format(sfx)]             
             norm = np.linalg.norm(np.array(param))
             median_jorge= np.median(param)
             mean = np.mean(param)
             
-            if sfx == 'flx':
-                fluxes_and_err = pc.ABMagToFlux(param, param_err)
-                param = fluxes_and_err[0]
-                param_err = fluxes_and_err[1]
+            #if sfx == 'flx':
+            #    fluxes_and_err = pc.ABMagToFlux(param, param_err)
+            #    param = fluxes_and_err[0]
+            #    param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
