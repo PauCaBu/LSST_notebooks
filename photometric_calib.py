@@ -740,7 +740,7 @@ def ABMagToFlux(mab, mab_err=None):
     f : [float]
     """
     f = 10**(-0.4*(mab - 8.90))
-    if mab_err != None:
+    if type(mab_err) != type(None):
         f_err = np.sqrt((f*np.log(10)*0.4*mab_err)**2)
         return f, f_err
     else:
