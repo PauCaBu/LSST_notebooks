@@ -502,7 +502,7 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         diffexp_cutout_arr = np.asarray(diffexp_cutout.image.array, dtype='float')
         coadd_cutout_arr = np.asarray(coadd_cutout.image.array, dtype='float')
 
-        print('calexp data matrix: ', calexp_cutout_arr)
+        #print('calexp data matrix: ', calexp_cutout_arr)
 
         fig = plt.figure(figsize=(16, 5))
 
@@ -510,7 +510,7 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
 
         fig.add_subplot(1,3,1)
         plt.imshow(calexp_cutout_arr)
-        plt.contour(calexp_cutout_arr, levels=np.logspace(-5, 2, 10), colors ='white', alpha=0.5)
+        plt.contour(calexp_cutout_arr, levels=np.logspace(1, 3, 10), colors ='white', alpha=0.5)
 
         #stamp_display.append(afwDisplay.Display(frame=fig))
         #stamp_display[0].scale('asinh', -10, 10)
@@ -1723,7 +1723,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
 
     if SIBLING!=None and sfx == 'flx':
-        x, y, yerr = compare_to(SIBLING, sfx=sfx, factor=factor)
+        x, y, yerr = compare_to(SIBLING, sfx=sfx, factor=0.75)
         f, ferr = pc.ABMagToFlux(y, yerr)
         plt.errorbar(x-min(x),f, yerr=ferr,  capsize=4, fmt='o', ecolor='m', color='m', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
@@ -2705,12 +2705,17 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
     if SIBLING!=None and SIBLING[0:24]=="/home/jahumada/Jorge_LCs" and type(SIBLING)==str:
         Jorge_LC = pd.read_csv(SIBLING, header=5)
         Jorge_LC = Jorge_LC[Jorge_LC['mjd']<beforeDate] 
-        
+        sfx_aux = 'mag'
         if factor==0.5:
-            param = Jorge_LC['aperture_{}_0'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_0'.format(sfx)]
+            
+            param = Jorge_LC['aperture_{}_0'.format(sfx_aux)]
+            param_err = Jorge_LC['aperture_{}_err_0'.format(sfx_aux)]
             median_jorge=np.median(param)
-            #if sfx == 'mag':
+            if sfx == 'flx':
+                fluxes_and_err = pc.ABMagToFlux(param, param_err)
+                param = fluxes_and_err[0]
+                param_err = fluxes_and_err[1]
+            #    param = 
             #    median_jorge=0 
             #
             #std = np.norm(Jorge_LC.aperture_flx_0)
@@ -2722,12 +2727,14 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
         if factor==0.75:
 
             
-            param = Jorge_LC['aperture_{}_1'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_1'.format(sfx)]
+            param = Jorge_LC['aperture_{}_1'.format(sfx_aux)]
+            param_err = Jorge_LC['aperture_{}_err_1'.format(sfx_aux)]
             median_jorge = np.median(param)
             mean = np.mean(param)
-            #if sfx == 'mag':
-            #    median_jorge=0 
+            if sfx == 'flx':
+                fluxes_and_err = pc.ABMagToFlux(param, param_err)
+                param = fluxes_and_err[0]
+                param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
@@ -2736,15 +2743,17 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
 
         if factor==1:
             
-            param = Jorge_LC['aperture_{}_2'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_2'.format(sfx)]
+            param = Jorge_LC['aperture_{}_2'.format(sfx_aux)]
+            param_err = Jorge_LC['aperture_{}_err_2'.format(sfx_aux)]
             mean = np.mean(param)
             norm = np.linalg.norm(np.array(param))
             median_jorge = np.median(param)
 
-            #if sfx == 'mag':
-            #    median_jorge = 0  
-            #std = np.std(Jorge_LC.aperture_flx_2)
+            if sfx == 'flx':
+                fluxes_and_err = pc.ABMagToFlux(param, param_err)
+                param = fluxes_and_err[0]
+                param_err = fluxes_and_err[1]
+
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
             yerr = param_err
@@ -2752,13 +2761,15 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - mean, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
         if factor==1.25:
             #std = np.std(Jorge_LC.aperture_flx_3)
-            param = Jorge_LC['aperture_{}_3'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_3'.format(sfx)]
+            param = Jorge_LC['aperture_{}_3'.format(sfx_aux)]
+            param_err = Jorge_LC['aperture_{}_err_3'.format(sfx_aux)]
             mean = np.mean(param)
             median_jorge= np.median(param)
-            #if sfx == 'mag':
-            #    median_jorge=0 
-            #fluxes /= norm
+            if sfx == 'flx':
+                fluxes_and_err = pc.ABMagToFlux(param, param_err)
+                param = fluxes_and_err[0]
+                param_err = fluxes_and_err[1]
+
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
             yerr = param_err
@@ -2767,13 +2778,17 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
         if factor==1.5:
             #std = np.std(Jorge_LC.aperture_flx_4)
             
-            param = Jorge_LC['aperture_{}_4'.format(sfx)]
-            param_err = Jorge_LC['aperture_{}_err_4'.format(sfx)]             
+            param = Jorge_LC['aperture_{}_4'.format(sfx_aux)]
+            param_err = Jorge_LC['aperture_{}_err_4'.format(sfx_aux)]             
             norm = np.linalg.norm(np.array(param))
             median_jorge= np.median(param)
             mean = np.mean(param)
-            #if sfx == 'mag':
-            #    median_jorge=0 
+            
+            if sfx == 'flx':
+                fluxes_and_err = pc.ABMagToFlux(param, param_err)
+                param = fluxes_and_err[0]
+                param_err = fluxes_and_err[1]
+
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
             y = param - median_jorge
             yerr = param_err
