@@ -510,7 +510,7 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         fig.add_subplot(1,3,1)
         plt.imshow(calexp_cutout_arr)
         plt.colorbar()
-        plt.contour(calexp_cutout_arr, levels=np.logspace(1.3, 3.3, 10), colors ='white', alpha=0.5)
+        plt.contour(calexp_cutout_arr, levels=np.logspace(1.3, 2.5, 10), colors ='white', alpha=0.5)
         circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
         plt.gca().add_patch(circle)
         
@@ -531,7 +531,7 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         fig.add_subplot(1,3,3)
         plt.imshow(coadd_cutout_arr)
         plt.colorbar()
-        plt.contour(coadd_cutout_arr, levels=np.logspace(1.3, 3.3, 10), colors ='white', alpha=0.5)
+        plt.contour(coadd_cutout_arr, levels=np.logspace(1.3, 2.5, 10), colors ='white', alpha=0.5)
 
         #plt.scatter(x_half_width, y_half_width, s=np.pi*s**2, facecolors='none', edgecolors='red')
         circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
@@ -771,7 +771,7 @@ def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
     return dates_aux, visits_aux
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 2, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=True, config='SIBLING', verbose=True):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 2, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, config='SIBLING', verbose=False):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -874,7 +874,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     butler = Butler(repo)
 
     data_for_hist = []
-
+    
     scaling = []
     scaling_coadd = []
     magzero_reference = 0
@@ -1021,9 +1021,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
 
         print('Coords: ra = {}, dec = {}'.format(ra,dec))
-        print('visit : {}'.format(visits[i]))
+        print('visit : {}'.format(visits_aux[i]))
         
         if show_stamps:
+            print('DATE: ', dates_aux[i])
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', r_aux)
             Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
@@ -1371,11 +1372,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 # Using LSST photocalibration
                 f_star_physical = photocalib.instFluxToNanojansky(f[0], f_err[0], obj_pos_2d_star)
                 ft_star_physical = photocalib_coadd.instFluxToNanojansky(ft[0], ft_err[0], obj_pos_2d_star)
+                fs_star_physical = photocalib_calexp.instFluxToNanojansky(fs[0], fs_err[0], obj_pos_2d_star)
+
 
                 flux_stars_and_errors.append(f_star_physical.value)
                 flux_stars_and_errors.append(f_star_physical.error)
                 flux_stars_and_errors.append(ft_star_physical.value)
                 flux_stars_and_errors.append(ft_star_physical.error)
+                flux_stars_and_errors.append(fs_star_physical.value)
+                flux_stars_and_errors.append(fs_star_physical.error)
+
 
                 Fstar = np.array((f_star_physical.value + ft_star_physical.value)*1e-9)
                 Fstar_err = np.sqrt((ft_star_physical.error*1e-9)**2 + (f_star_physical.error*1e-9)**2)
@@ -1412,6 +1418,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 flux_stars_and_errors.append(Mag_star_err)
                 flux_stars_and_errors.append(Mag_star_coadd)
                 flux_stars_and_errors.append(Mag_star_coadd_err)
+                #print('len flux_stars_and_errors: ', len(flux_stars_and_errors))
 
                 ###########
                 if verbose:
@@ -1711,7 +1718,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     if SIBLING!=None and sfx == 'flx':
         x, y, yerr = compare_to(SIBLING, sfx='mag', factor=0.75)
         f, ferr = pc.ABMagToFlux(y, yerr)
-        plt.errorbar(x-min(x),f - np.median(f), yerr=ferr,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
+        plt.errorbar(x-min(x),f*10 - np.median(f*10), yerr=ferr*10,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
     
     #plt.show()
 
