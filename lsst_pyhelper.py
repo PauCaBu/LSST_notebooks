@@ -1327,6 +1327,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             
             photocalib = diffexp.getPhotoCalib()
             photocalib_coadd = coadd.getPhotoCalib()
+            photocalib_calexp = calexp.getPhotoCalib()
+
             wcs = diffexp.getWcs()
             data = np.asarray(diffexp.image.array, dtype='float')            
             data_coadd = np.asarray(coadd.image.array, dtype='float')
@@ -1367,44 +1369,44 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                     saturated_stars.append(i+1)
                 
                 # Using LSST photocalibration
-                #f_star_physical = photocalib.instFluxToNanojansky(f[0], f_err[0], obj_pos_2d_star)
-                #ft_star_physical = photocalib_coadd.instFluxToNanojansky(ft[0], ft_err[0], obj_pos_2d_star)
+                f_star_physical = photocalib.instFluxToNanojansky(f[0], f_err[0], obj_pos_2d_star)
+                ft_star_physical = photocalib_coadd.instFluxToNanojansky(ft[0], ft_err[0], obj_pos_2d_star)
 
-                #flux_stars_and_errors.append(f_star_physical.value)
-                #flux_stars_and_errors.append(f_star_physical.error)
-                #flux_stars_and_errors.append(ft_star_physical.value)
-                #flux_stars_and_errors.append(ft_star_physical.error)
+                flux_stars_and_errors.append(f_star_physical.value)
+                flux_stars_and_errors.append(f_star_physical.error)
+                flux_stars_and_errors.append(ft_star_physical.value)
+                flux_stars_and_errors.append(ft_star_physical.error)
 
-                #Fstar = np.array((f_star_physical.value + ft_star_physical.value)*1e-9)
-                #Fstar_err = np.sqrt((ft_star_physical.error*1e-9)**2 + (f_star_physical.error*1e-9)**2)
+                Fstar = np.array((f_star_physical.value + ft_star_physical.value)*1e-9)
+                Fstar_err = np.sqrt((ft_star_physical.error*1e-9)**2 + (f_star_physical.error*1e-9)**2)
 
-                #Magstars = pc.FluxJyToABMag(Fstar, Fstar_err)
-                #Mag_star = Magstars[0]
-                #Mag_star_err = Magstars[1]
-
-                #Magstars_coadd = pc.FluxJyToABMag(ft_star_physical.value*1e-9, ft_star_physical.error*1e-9)
-                #Mag_star_coadd = Magstars_coadd[0]
-                #Mag_star_coadd_err = Magstars_coadd[1]
-
-                # Using my calibration  
-                
-                flux_stars_and_errors.append(f[0]*calib_lsst[j])
-                flux_stars_and_errors.append(f_err[0]*calib_lsst[j])
-                flux_stars_and_errors.append(ft[0]*calib_lsst[j])
-                flux_stars_and_errors.append(ft_err[0]*calib_lsst[j])
-                flux_stars_and_errors.append(fs[0]*calib_lsst[j])
-                flux_stars_and_errors.append(fs_err[0]*calib_lsst[j])
-
-                Fstar = np.array((f[0]*calib_lsst[j] + ft[0]*calib_lsst[j])) #flux [nJy]
-                Fstar_err = np.sqrt((ft_err[0]*calib_lsst[j])**2 + (f_err[0]*calib_lsst[j])**2) #flux [nJy]
-
-                Magstars = pc.FluxJyToABMag(Fstar*1e-9, Fstar_err*1e-9)
+                Magstars = pc.FluxJyToABMag(Fstar, Fstar_err)
                 Mag_star = Magstars[0]
                 Mag_star_err = Magstars[1]
 
-                Magstars_coadd = pc.FluxJyToABMag(ft[0]**calib_lsst[j]*1e-9, ft_err[0]**calib_lsst[j]*1e-9)
+                Magstars_coadd = pc.FluxJyToABMag(ft_star_physical.value*1e-9, ft_star_physical.error*1e-9)
                 Mag_star_coadd = Magstars_coadd[0]
                 Mag_star_coadd_err = Magstars_coadd[1]
+
+                # Using my calibration  
+                
+                #flux_stars_and_errors.append(f[0]*calib_lsst[j])
+                #flux_stars_and_errors.append(f_err[0]*calib_lsst[j])
+                #flux_stars_and_errors.append(ft[0]*calib_lsst[j])
+                #flux_stars_and_errors.append(ft_err[0]*calib_lsst[j])
+                #flux_stars_and_errors.append(fs[0]*calib_lsst[j])
+                #flux_stars_and_errors.append(fs_err[0]*calib_lsst[j])
+
+                #Fstar = np.array((f[0]*calib_lsst[j] + ft[0]*calib_lsst[j])) #flux [nJy]
+                #Fstar_err = np.sqrt((ft_err[0]*calib_lsst[j])**2 + (f_err[0]*calib_lsst[j])**2) #flux [nJy]
+
+                #Magstars = pc.FluxJyToABMag(Fstar*1e-9, Fstar_err*1e-9)
+                #Mag_star = Magstars[0]
+                #Mag_star_err = Magstars[1]
+
+                #Magstars_coadd = pc.FluxJyToABMag(ft[0]**calib_lsst[j]*1e-9, ft_err[0]**calib_lsst[j]*1e-9)
+                #Mag_star_coadd = Magstars_coadd[0]
+                #Mag_star_coadd_err = Magstars_coadd[1]
                 
                 flux_stars_and_errors.append(Mag_star)
                 flux_stars_and_errors.append(Mag_star_err)
@@ -1419,7 +1421,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                     print('꒰✩ ’ω`ૢ✩꒱ -------------------- ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂')
             
             stars.loc[len(stars.index)] = flux_stars_and_errors
-        field = collection_diff[13:24]
+        #field = collection_diff[13:24]
         #here we plot the stars vs panstarss magnitude:
         norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
         c_m = matplotlib.cm.plasma
@@ -1449,7 +1451,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.ylabel('Magnitude - PS1 magnitude', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.title('Difference between magnitudes', fontsize=17)
-        plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
+        if save_lc_stars:
+            plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
         plt.show()
 
 
