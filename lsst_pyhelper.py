@@ -642,6 +642,54 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
         
     return
 
+
+def values_across_source(exposure, ra, dec , x_length, y_length, stat='median', title_plot = ''):
+    """
+    Returns an array of the values across a source, is intended to be a slit 
+    that is wider in the x-axis
+
+    input:
+    -----
+    data
+    xpix
+    ypix
+    x_length 
+    y_length
+    stat
+
+    output 
+    ------
+    array
+    """
+    wcs = exposure.getWcs()
+    obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+    x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+    x_half_width = x_length
+    y_half_width = y_length
+    bbox = lsst.geom.Box2I()
+    bbox.include(lsst.geom.Point2I(x_pix - x_half_width, y_pix - y_half_width))
+    bbox.include(lsst.geom.Point2I(x_pix + x_half_width, y_pix + y_half_width))
+
+    exp_cutout = exposure.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(x_length*2, y_length*2))
+    exp_cutout_array = np.asarray(exp_cutout.image.array, dtype='float')
+
+   
+    if stat == 'median':
+        values = np.median(exp_cutout_array, axis=0)
+    
+    f, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [1, 2]}, sharex=True, figsize=(10,6))
+    ax1.set_title(title_plot, fontsize=17)
+    ax1.imshow(exp_cutout_array)
+    ax1.scatter(x_length, y_length, color='red', s=20)
+    ax2.bar(range(len(values)), values, color = 'm')
+    ax2.set_ylabel('Counts [ADU]', fontsize=17)
+    ax2.set_xlabel('x-axis pixels', fontsize=17)
+    ax1.set_ylabel('y-axis pixels', fontsize=17)
+    f.subplots_adjust(hspace=0)
+    plt.show()
+    return values
+
+
 def Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20, save_stamps=False, save_as=''):
     """
     Plots all the calibrated and difference-imaged exposure cropped to the location of ra,dec in a single plot (figure).
@@ -1028,6 +1076,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', r_aux)
             Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
+            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure')
+            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure')
+            
        
 
         
@@ -1293,8 +1344,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #print('width: {} , height : {}'.format(width, height))
 
         #stars_table = Find_stars(ra_center, dec_center, width, height, nstars, seed=[True, 200])
-        stars_table = Inter_Join_Tables_from_LSST(repo, visits, ccd_num, collection_diff)
-
+        stars_table = Inter_Join_Tables_from_LSST(repo, visits_aux, ccd_num, collection_diff)
+        stars_table = stars_table.reset_index()
         #Inter_Join_Tables_from_LSST(repo, visits_aux, ccd_num, collection_diff) #Find_stars_from_LSST_to_PS1(repo, visits_aux[0], ccd_num, collection_diff, n=nstars, well_subtracted=well_subtracted)
         #print(stars_table)
         if len(stars_table) == 0: # or stars_table==None
@@ -1308,11 +1359,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1), 'star_{}_ft'.format(i+1), 'star_{}_fterr'.format(i+1), 'star_{}_fs'.format(i+1), 'star_{}_fserr'.format(i+1), 'star_{}_mag'.format(i+1), 'star_{}_magErr'.format(i+1), 'star_{}_magt'.format(i+1), 'star_{}_magtErr'.format(i+1)] for i in range(nstars)]))
         stars = pd.DataFrame(columns=columns_stars)
         #stars_table = stars_table.sample(n=nstars)
-        stars_table = stars_table.reset_index()
+        
         print('number of stars we will revise: ', len(stars_table))
 
-        ra_s = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits[0])])
-        dec_s = np.array(stars_table['coord_dec_ddegrees_{}'.format(visits[0])])
+        ra_s = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits_aux[0])])
+        dec_s = np.array(stars_table['coord_dec_ddegrees_{}'.format(visits_aux[0])])
 
         ps1_mags = pc.get_mags_from_catalog_ps1(ra_s, dec_s)        
         ps1_info = pc.get_from_catalog_ps1(ra_s, dec_s)
@@ -1360,6 +1411,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 
                 if show_star_stamps:
                     Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra_star, dec_star, [visits_aux[j]], ccd_num, s=star_aperture, cutout=80)
+                    values_across_source(calexp, ra_star, dec_star , x_length = star_aperture, y_length=1.5, stat='median', title_plot='Calibrated exposure of star {}'.format(i+1))
+                    values_across_source(diffexp, ra_star, dec_star , x_length = star_aperture, y_length=1.5, stat='median', title_plot = 'Difference exposure of star {}'.format(i+1))
+            
                     
                 
                 f, f_err, fg = sep.sum_circle(data, [x_star], [y_star], star_aperture, var = np.asarray(diffexp.variance.array, dtype='float'))
@@ -1438,8 +1492,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         s_m.set_array([])
         T = np.linspace(0,27,len(visits_aux))
         fluxt_stars = [np.median(np.array(stars['star_{}_ft'.format(i+1)])) for i in range(nstars)]
-        fluxt_stars_norm_factor = np.linalg.norm(fluxt_stars)
-        fluxt_stars_norm = fluxt_stars/fluxt_stars_norm_factor
+        #fluxt_stars_norm_factor = np.linalg.norm(fluxt_stars)
+        #fluxt_stars_norm = fluxt_stars/fluxt_stars_norm_factor
 
         plt.show()
         plt.figure(figsize=(10,10))
@@ -1853,7 +1907,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     print(source_of_interest)
     return source_of_interest
 
-def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, sfx='flx', show_star_stamps = False, show_stamps=False, factor=1, well_subtracted=True, factor_star=2):
+def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, sfx='flx', show_star_stamps = False, show_stamps=False, factor=1, well_subtracted=False, factor_star=2):
     """
     plots all sources located in a field
 
@@ -1884,7 +1938,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
             name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_calibLsst').replace('.', '_')
-            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r='seeing', factor=factor, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=10, well_subtracted=well_subtracted, field=field, factor_star = factor_star)
+            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r=10, factor=factor, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=10, well_subtracted=well_subtracted, field=field, factor_star = factor_star)
             
             if len(df) != 0 or type(df)!=None:
 
@@ -2146,6 +2200,33 @@ def Find_stars(ra, dec, width, height, n, seed=[True, 200]):
 
     return table
 
+def Select_table_from_one_calib_exposure(repo, visit, ccdnum, collection_calexp):
+    """
+    Selects stars from calibrated exposures 
+
+    """
+    
+    butler = Butler(repo)
+    calexp = butler.get('calexp',visit=visit, detector=ccdnum , collections=collection_calexp, instrument='DECam')
+    photocalib_calexp = calexp.getPhotoCalib()
+
+    src = butler.get('src',visit=visit, detector=ccdnum , collections=collection_calexp, instrument='DECam')
+    src = photocalib_calexp.calibrateCatalog(src)
+    src_pandas = src.asAstropy().to_pandas()
+    src_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_ra'])]
+    src_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_dec'])]
+    mask = (src_pandas['calib_photometry_used'] == True)
+    stars_photometry = src_pandas[mask]
+    sources_masked = stars_photometry.dropna(subset=['coord_ra', 'coord_dec'])
+    phot_table = Table.from_pandas(sources_masked)
+    phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra'] * u.rad).to(u.degree)
+    phot_table['coord_dec_ddegrees'] = (phot_table['coord_dec'] * u.rad).to(u.degree)
+    photom_mean = photocalib_calexp.getCalibrationMean()
+    phot_table['phot_calib_mean'] = photom_mean * np.ones(len(phot_table))
+    phot_table['src_id'] = phot_table['id']
+
+    return phot_table
+
 
 def Select_table_from_one_exposure(repo, visit, ccdnum, collection_diff, well_subtracted=True):
     """
@@ -2227,7 +2308,7 @@ def Select_table_from_one_exposure(repo, visit, ccdnum, collection_diff, well_su
   
     return phot_table
 
-def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = True):
+def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = True, tp='after_ID'):
     """
     From the src tables of LSST for each exposure, we select the sources that were used for photometry,
     which are the stars. We add them all in a dictionary whose keys are the visit number, and the 
@@ -2239,7 +2320,9 @@ def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtract
     visits : [ndarray]
     ccdnum : [int]
     collection_diff : [string]
-    
+    well_subtracted : [bool]
+    tp : [string]
+
     Output: 
     ------
     Dict_tables : [dict]
@@ -2247,10 +2330,13 @@ def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtract
     """
     Dict_tables = {}
     for i in range(len(visits)):
-        Dict_tables['{}'.format(visits[i])] = Select_table_from_one_exposure(repo, visits[i], ccdnum, collection_diff, well_subtracted=well_subtracted)
+        if tp == 'after_ID':
+            Dict_tables['{}'.format(visits[i])] = Select_table_from_one_exposure(repo, visits[i], ccdnum, collection_diff, well_subtracted=well_subtracted)
+        if tp == 'before_ID':
+            Dict_tables['{}'.format(visits[i])] = Select_table_from_one_calib_exposure(repo, visits[i], ccdnum, collection_diff)
     return Dict_tables
 
-def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = True):
+def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = True, tp ='after_ID'):
     """
     Joins src tables of LSST on the ra, dec truncated of the visits 
     """
@@ -2260,7 +2346,7 @@ def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted
     if type(visits) == int:
         visits = [visits]
 
-    dictio =  Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = well_subtracted)
+    dictio =  Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = well_subtracted, tp=tp)
     big_table = 0
     i=0
     columns_picked = ['src_id', 'coord_ra', 'coord_dec', 'coord_ra_ddegrees', 'coord_dec_ddegrees', 'base_CircularApertureFlux_3_0_instFlux', 'base_PsfFlux_instFlux', 'base_PsfFlux_mag', 'base_PsfFlux_magErr','slot_PsfFlux_mag', 'phot_calib_mean']
@@ -2297,11 +2383,11 @@ def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted
     return big_table
 
 
-def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted =True):
+def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted =True, tp='after_ID'):
     """
     returns the common stars used for calibration
     """
-    big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,well_subtracted = well_subtracted)
+    big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,well_subtracted = well_subtracted, tp=tp)
     phot_table = big_table.dropna()
     phot_table = phot_table.drop_duplicates('coord_ra_trunc')
     phot_table = phot_table.reset_index()
