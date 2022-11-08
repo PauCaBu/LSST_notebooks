@@ -70,10 +70,12 @@ def get_all_exposures(repo, obs_type, instrument='DECam'):
         data.loc[len(data.index)] = new_row
     if data.empty:
         print("No exposure found in REPO:{} with observation type {}".format(repo, obs_type))
+
     return data
 
 def radec_to_pixel(ra,dec,wcs):
     """
+
     Retrieves the x,y pixel position of a coordinate ra,dec given the wcs of the image.
     
     -----
@@ -643,9 +645,9 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
     return
 
 
-def values_across_source(exposure, ra, dec , x_length, y_length, stat='median', title_plot = ''):
+def values_across_source(exposure, ra, dec , x_length, y_length, stat='median', title_plot = '', save_plot =False, field=None, name =None):
     """
-    Returns an array of the values across a source, is intended to be a slit 
+    Returns an array of the values across a rectangular slit of a source,
     that is wider in the x-axis
 
     input:
@@ -669,26 +671,28 @@ def values_across_source(exposure, ra, dec , x_length, y_length, stat='median', 
     bbox = lsst.geom.Box2I()
     bbox.include(lsst.geom.Point2I(x_pix - x_half_width, y_pix - y_half_width))
     bbox.include(lsst.geom.Point2I(x_pix + x_half_width, y_pix + y_half_width))
-
+    exp_photocalib = exposure.getPhotoCalib()
     exp_cutout = exposure.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(x_length*2, y_length*2))
     exp_cutout_array = np.asarray(exp_cutout.image.array, dtype='float')
-
+    obj_pos_2d = lsst.geom.Point2D(ra, dec)
    
     if stat == 'median':
-        values = np.median(exp_cutout_array, axis=0)
-    
+        adu_values = np.median(exp_cutout_array, axis=0)
+    fluxes = [exp_photocalib.instFluxToNanojansky(f, obj_pos_2d) for f in adu_values]
+
     f, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [1, 2]}, sharex=True, figsize=(10,6))
     ax1.set_title(title_plot, fontsize=17)
     ax1.imshow(exp_cutout_array)
     ax1.scatter(x_length, y_length, color='red', s=20)
-    ax2.bar(range(len(values)), values, color = 'm')
-    ax2.set_ylabel('Counts [ADU]', fontsize=17)
+    ax2.bar(range(len(adu_values)), fluxes, color = 'm')
+    ax2.set_ylabel('Flux [nJy]', fontsize=17)
     ax2.set_xlabel('x-axis pixels', fontsize=17)
     ax1.set_ylabel('y-axis pixels', fontsize=17)
     f.subplots_adjust(hspace=0)
+    if save_plot:
+        f.savefig('light_curves/{}/{}.png'.format(field, name), bbox_inches='tight')
     plt.show()
-    return values
-
+    return fluxes
 
 def Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20, save_stamps=False, save_as=''):
     """
@@ -819,7 +823,7 @@ def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
     return dates_aux, visits_aux
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 2, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, config='SIBLING', verbose=False):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 2, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, config='SIBLING', verbose=False, tp='after_ID'):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -1076,8 +1080,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', r_aux)
             Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
-            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure')
-            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure')
+            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}.pdf'.format(save_as, sfx))
+            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}.pdf'.format(save_as, sfx))
             
        
 
@@ -1344,8 +1348,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #print('width: {} , height : {}'.format(width, height))
 
         #stars_table = Find_stars(ra_center, dec_center, width, height, nstars, seed=[True, 200])
-        stars_table = Inter_Join_Tables_from_LSST(repo, visits_aux, ccd_num, collection_diff)
-        stars_table = stars_table.reset_index()
+        stars_table = Inter_Join_Tables_from_LSST(repo, visits_aux, ccd_num, collection_diff, tp=tp)
+
+        if tp=='before_ID':
+            random_indexes = random.sample(range(len(stars_table)), int(len(stars_table)*0.18))
+            stars_table = stars_table.loc[random_indexes]
+            stars_table = stars_table.reset_index()
+        #stars_table = stars_table.reset_index()
+
         #Inter_Join_Tables_from_LSST(repo, visits_aux, ccd_num, collection_diff) #Find_stars_from_LSST_to_PS1(repo, visits_aux[0], ccd_num, collection_diff, n=nstars, well_subtracted=well_subtracted)
         #print(stars_table)
         if len(stars_table) == 0: # or stars_table==None
@@ -1394,6 +1404,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             star_aperture = seeing * factor_star #2 # arcsec 
             star_aperture/=pixel_to_arcsec # transform it to pixel values 
 
+            exp_visit_info = diffexp.getInfo().getVisitInfo()
+            visit_date_python = exp_visit_info.getDate().toPython()
+            visit_date_astropy = Time(visit_date_python)        
+            d = visit_date_astropy.mjd
+
+
             print('star aperture in pixels: ', star_aperture)
             saturated_stars = []
             for i in range(nstars):
@@ -1410,9 +1426,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                     print('x_pix : {}  y_pix : {}'.format(x_star, y_star))
                 
                 if show_star_stamps:
-                    Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra_star, dec_star, [visits_aux[j]], ccd_num, s=star_aperture, cutout=80)
-                    values_across_source(calexp, ra_star, dec_star , x_length = star_aperture, y_length=1.5, stat='median', title_plot='Calibrated exposure of star {}'.format(i+1))
-                    values_across_source(diffexp, ra_star, dec_star , x_length = star_aperture, y_length=1.5, stat='median', title_plot = 'Difference exposure of star {}'.format(i+1))
+                    Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra_star, dec_star, [visits_aux[j]], ccd_num, s=star_aperture, cutout=2*star_aperture)
+                    values_across_source(calexp, ra_star, dec_star , x_length = star_aperture, y_length=1.5, stat='median', title_plot='Calibrated exposure of star {}'.format(i+1), save_plot = True, field=field, name='median_slit_hist_star{}_mjd_{}'.format(i+1, Truncate(d, 4)))
+                    #values_across_source(diffexp, ra_star, dec_star , x_length = star_aperture, y_length=1.5, stat='median', title_plot = 'Difference exposure of star {}'.format(i+1))
             
                     
                 
@@ -1513,7 +1529,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.title('Difference between magnitudes', fontsize=17)
         if save_lc_stars:
-            plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
+            plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.pdf'.format(field, field, ccd_num), bbox_inches='tight')
         plt.show()
 
 
@@ -1572,15 +1588,19 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         for j in range(len(stars_table)):
             #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
             mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
-            flux_of_star_j = [pc.ABMagToFlux(m)*1e9 for m in mag_of_star_j]
+            magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+            fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
+            flux_of_star_j = fluxes_of_star_j[0]*1e9
+            fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
             #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
-            plt.plot(dates_aux, flux_of_star_j - np.median(flux_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
-
+            plt.errorbar(dates_aux, flux_of_star_j - np.median(flux_of_star_j), fluxErr_of_star_j, fmt='*', color=s_m.to_rgba(fluxt_stars[j]), ls='--', label='star {}'.format(j+1))
             ii+=1
+
         plt.xlabel('MJD', fontsize=17)
         plt.ylabel('Flux [nJy] of LSST - median', fontsize=17)
         plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.pdf'.format(field), bbox_inches='tight')
         plt.show()
 
         plt.figure(figsize=(10,6))
@@ -2215,7 +2235,7 @@ def Select_table_from_one_calib_exposure(repo, visit, ccdnum, collection_calexp)
     src_pandas = src.asAstropy().to_pandas()
     src_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_ra'])]
     src_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_dec'])]
-    mask = (src_pandas['calib_photometry_used'] == True)
+    mask = (src_pandas['calib_photometry_used'] == True) & (src_pandas['base_PsfFlux_instFlux']/src_pandas['base_PsfFlux_instFluxErr'] > 50)
     stars_photometry = src_pandas[mask]
     sources_masked = stars_photometry.dropna(subset=['coord_ra', 'coord_dec'])
     phot_table = Table.from_pandas(sources_masked)
@@ -2285,7 +2305,7 @@ def Select_table_from_one_exposure(repo, visit, ccdnum, collection_diff, well_su
     pdimy = 4096 
 
     sources = pd.merge(src_pandas, srcMatchFull_pandas, on=['coord_ra_trunc', 'coord_dec_trunc'], how='outer')
-    mask = (sources['src_calib_photometry_used'] == True)
+    mask = (sources['src_calib_photometry_used'] == True) & (sources['base_PsfFlux_instFlux']/sources['base_PsfFlux_instFluxErr'] > 50)
     sources_masked = sources[mask]
 
     if well_subtracted:
