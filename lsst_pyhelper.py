@@ -639,7 +639,7 @@ def Calib_and_Diff_one_plot_cropped(repo, collection_diff, collection_calexp, ra
         #plt.tight_layout()
         #plt.show()
     if save_stamps and save_as!='':
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}.pdf'.format(save_as))
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}.jpeg'.format(save_as))
 
         
     return
@@ -690,7 +690,7 @@ def values_across_source(exposure, ra, dec , x_length, y_length, stat='median', 
     ax1.set_ylabel('y-axis pixels', fontsize=17)
     f.subplots_adjust(hspace=0)
     if save_plot:
-        f.savefig('light_curves/{}/{}.png'.format(field, name), bbox_inches='tight')
+        f.savefig('light_curves/{}/{}.jpeg'.format(field, name), bbox_inches='tight')
     plt.show()
     return fluxes
 
@@ -790,7 +790,7 @@ def Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, visits
             plt.ylabel('Template', fontsize=15)
 
     if save_stamps and save_as!='':
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}.pdf'.format(save_as), bbox_inches='tight')
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}.jpeg'.format(save_as), bbox_inches='tight')
 
         
     return
@@ -1080,8 +1080,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', r_aux)
             Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
-            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}.pdf'.format(save_as, sfx))
-            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}.pdf'.format(save_as, sfx))
+            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}.jpeg'.format(save_as, sfx))
+            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}.jpeg'.format(save_as, sfx))
             
        
 
@@ -1351,9 +1351,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         stars_table = Inter_Join_Tables_from_LSST(repo, visits_aux, ccd_num, collection_diff, tp=tp)
 
         if tp=='before_ID':
+            random.seed(15030)
             random_indexes = random.sample(range(len(stars_table)), int(len(stars_table)*0.18))
             stars_table = stars_table.loc[random_indexes]
             stars_table = stars_table.reset_index()
+            #pass
         #stars_table = stars_table.reset_index()
 
         #Inter_Join_Tables_from_LSST(repo, visits_aux, ccd_num, collection_diff) #Find_stars_from_LSST_to_PS1(repo, visits_aux[0], ccd_num, collection_diff, n=nstars, well_subtracted=well_subtracted)
@@ -1363,7 +1365,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             pass
         
         #nstars = len(stars_table)
-        np.random.seed(436862)
+        
         print('available stars that satisfy criteria: ', len(stars_table))
         nstars = len(stars_table)
         columns_stars = np.ndarray.flatten(np.array([['star_{}_f'.format(i+1), 'star_{}_ferr'.format(i+1), 'star_{}_ft'.format(i+1), 'star_{}_fterr'.format(i+1), 'star_{}_fs'.format(i+1), 'star_{}_fserr'.format(i+1), 'star_{}_mag'.format(i+1), 'star_{}_magErr'.format(i+1), 'star_{}_magt'.format(i+1), 'star_{}_magtErr'.format(i+1)] for i in range(nstars)]))
@@ -1529,7 +1531,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.title('Difference between magnitudes', fontsize=17)
         if save_lc_stars:
-            plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.pdf'.format(field, field, ccd_num), bbox_inches='tight')
+            plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.jpeg'.format(field, field, ccd_num), bbox_inches='tight')
         plt.show()
 
 
@@ -1600,7 +1602,75 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.ylabel('Flux [nJy] of LSST - median', fontsize=17)
         plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.pdf'.format(field), bbox_inches='tight')
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
+        plt.show()
+
+
+        plt.figure(figsize=(10,10))
+        ii = 0
+
+        #deviation_from_median = []
+        for j in range(len(stars_table)):
+            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+            magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+            fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
+            flux_of_star_j = fluxes_of_star_j[0]*1e9
+            fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
+            #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
+            plt.hist(flux_of_star_j - np.median(flux_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
+            ii+=1
+
+        #plt.ylabel('MJD', fontsize=17)
+        plt.xlabel('Flux [nJy] of LSST - median', fontsize=17)
+        plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
+        plt.show()
+
+
+        plt.figure(figsize=(10,10))
+        ii = 0
+
+        #deviation_from_median = []
+        for j in range(len(stars_table)):
+            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+            magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+            fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
+            flux_of_star_j = fluxes_of_star_j[0]*1e9
+            fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
+            #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
+            plt.hist(flux_of_star_j - np.median(flux_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
+            ii+=1
+
+        #plt.ylabel('MJD', fontsize=17)
+        plt.xlabel('(Flux [nJy] of LSST - median)/median', fontsize=17)
+        #plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        #plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
+        plt.show()
+
+        plt.figure(figsize=(10,10))
+        ii = 0
+
+        #deviation_from_median = []
+        for j in range(len(stars_table)):
+            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+            #magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+            #fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
+            #flux_of_star_j = fluxes_of_star_j[0]*1e9
+            #fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
+            #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
+            plt.hist(mag_of_star_j - np.median(mag_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
+            ii+=1
+
+        #plt.ylabel('MJD', fontsize=17)
+        plt.xlabel('AB mag of LSST - median', fontsize=17)
+        plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
         plt.show()
 
         plt.figure(figsize=(10,6))
@@ -1778,11 +1848,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     field = collection_diff[13:24]
     if save_lc_stars and well_subtracted:
-        print('saving lcs stars as: ' +'light_curves/{}/{}_{}_random_stars.pdf'.format(field, field, ccd_name[ccd_num]))
-        plt.savefig('light_curves/{}/{}_{}_random_stars_sumwTemp.pdf'.format(field, field, ccd_name[ccd_num]), bbox_inches='tight')
+        print('saving lcs stars as: ' +'light_curves/{}/{}_{}_random_stars.jpeg'.format(field, field, ccd_name[ccd_num]))
+        plt.savefig('light_curves/{}/{}_{}_random_stars_sumwTemp.jpeg'.format(field, field, ccd_name[ccd_num]), bbox_inches='tight')
     if save_lc_stars and not well_subtracted:
-        print('saving lcs stars as: ' +'light_curves/{}/{}_{}_random_stars.pdf'.format(field, field, ccd_name[ccd_num]))
-        plt.savefig('light_curves/{}/{}_{}_random_stars_wdipoles_sumwTemp.pdf'.format(field, field, ccd_name[ccd_num]), bbox_inches='tight')
+        print('saving lcs stars as: ' +'light_curves/{}/{}_{}_random_stars.jpeg'.format(field, field, ccd_name[ccd_num]))
+        plt.savefig('light_curves/{}/{}_{}_random_stars_wdipoles_sumwTemp.jpeg'.format(field, field, ccd_name[ccd_num]), bbox_inches='tight')
     plt.show()
 
     #f, (ax1, ax2, ax3) = plt.subplots(3, 1, gridspec_kw={'height_ratios': [2, 1, 1]},sharex=True, figsize=(10,6))
@@ -1893,10 +1963,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.xscale('log')
 
     if save and save_as=='':
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/ra_{}_dec_{}_{}.pdf'.format(ra,dec,sfx), bbox_inches='tight')
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/ra_{}_dec_{}_{}.jpeg'.format(ra,dec,sfx), bbox_inches='tight')
     
     if save and save_as!='':
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}_{}.pdf'.format(save_as, sfx), bbox_inches='tight')
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}_{}.jpeg'.format(save_as, sfx), bbox_inches='tight')
     
     plt.show()
     
@@ -2949,8 +3019,27 @@ def Truncate(num, decim):
     return trunc_num
 
 
+def Excess_variance(mag, magerr):
+    """
+    Calculates excess variance as defined by Sanchez et al. 2017
 
+    Input
+    -----
+    mag
+    magerr
 
+    Output
+    ----
+    sigma_rms_sq - sigma_rms_sq_err
+
+    """
+    mean_mag = np.mean(mag)
+    nobs = len(mag)
+    sigma_rms_sq = 1/(nobs * mean_mag**2) * np.sum((mag - mean_mag)**2 - magerr**2) 
+    sd = 1/nobs * np.sum((((mag - mean_mag)**2 - magerr**2) - sigma_rms_sq * mean_mag**2 )**2)
+    sigma_rms_sq_err = sd / (mean_mag**2 * nobs**1/2)
+
+    return sigma_rms_sq - sigma_rms_sq_err
 
 
 
