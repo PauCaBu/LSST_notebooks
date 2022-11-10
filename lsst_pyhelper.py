@@ -699,7 +699,8 @@ def values_across_source(exposure, ra, dec , x_length, y_length, stat='median', 
     ax1.set_ylabel('y-axis pixels', fontsize=17)
     f.subplots_adjust(hspace=0)
     if save_plot:
-        f.savefig('light_curves/{}/{}.jpeg'.format(field, name), bbox_inches='tight')
+        #f.savefig('light_curves/{}/{}.jpeg'.format(field, name), bbox_inches='tight')
+        pass
     plt.show()
     return fluxes
 
@@ -1075,10 +1076,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #r_aux*=calib_image
 
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], r_aux, var = np.asarray(diffexp.variance.array, dtype='float'))
-        flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(diffexp.variance.array, dtype='float'))
+        #flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(diffexp.variance.array, dtype='float'))
         flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], r_aux, var = np.asarray(calexp.variance.array, dtype='float'))
         flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix], [y_pix], r_aux, var = np.asarray(coadd.variance.array, dtype='float'))
-        flux_coadd_an, fluxerr_coadd_an, flag_coadd = sep.sum_circann(data_coadd, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(coadd.variance.array, dtype='float'))
+        #flux_coadd_an, fluxerr_coadd_an, flag_coadd = sep.sum_circann(data_coadd, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(coadd.variance.array, dtype='float'))
         
 
         print('Coords: ra = {}, dec = {}'.format(ra,dec))
@@ -1089,8 +1090,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', r_aux)
             Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
-            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}.jpeg'.format(save_as, sfx))
-            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}.jpeg'.format(save_as, sfx))
+            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}'.format(save_as, sfx))
+            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}'.format(save_as, sfx))
             
        
 
