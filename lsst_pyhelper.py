@@ -1274,15 +1274,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     # comparison between calibration factors 
 
-    #plt.figure(figsize=(10,6))
+    plt.figure(figsize=(10,6))
     #plt.plot(dates_aux, my_calib, '*', color='black', label='My calib')
-    #plt.plot(dates_aux, calib_lsst, 'o', color='blue', label='lsst cal')
+    plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='lsst cal')
     
-    #plt.xlabel('MJD', fontsize=17)
-    #plt.ylabel('Calibration mean', fontsize=17)
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('Calibration mean', fontsize=17)
     #plt.title('Calibration scaling comparison', fontsize=17)
     #plt.legend()
-    #plt.show()
+    plt.show()
 
     # plorrint calib intercept
 
@@ -1304,11 +1304,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     plt.figure(figsize=(10,6))
     #plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', linestyle='--')
     plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline', linestyle='--')
-    
     plt.xlabel('MJD', fontsize=17)
     plt.ylabel('Calibration mean', fontsize=17)
-    plt.title('Calibration relative to first visit', fontsize=17)
-    plt.legend()
+    plt.title('LSST calibration mean', fontsize=17)
     plt.show()
 
     # plorrint calib intercept
@@ -1631,8 +1629,35 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.figure(figsize=(10,10))
         ii = 0
+        
+        excess_var = []
+        for j in range(len(stars_table)):
+            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+            magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+            #fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
+            #flux_of_star_j = fluxes_of_star_j[0]*1e9
+            #fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
+            #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
+            #plt.hist(Excess_variance(mag_of_star_j, magErr_of_star_j), alpha=0.5, label='star {}'.format(j+1), histtype='step', color=s_m.to_rgba(fluxt_stars[j]))
+            excess_var.append(Excess_variance(mag_of_star_j, magErr_of_star_j))
+            #print(Excess_variance(mag_of_star_j, magErr_of_star_j))
+            ii+=1
 
-        #deviation_from_median = []
+        plt.hist(excess_var, label='star {}'.format(j+1), color='black')
+        print(excess_var)
+        #plt.ylabel('MJD', fontsize=17)
+        plt.xlabel('Excess Variance of stars', fontsize=17)
+        #plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        #plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
+        plt.show()
+
+
+        plt.figure(figsize=(10,10))
+        ii = 0
+        
+        excess_var = []
         for j in range(len(stars_table)):
             #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
             mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
@@ -1641,12 +1666,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             flux_of_star_j = fluxes_of_star_j[0]*1e9
             fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
             #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
-            plt.hist(flux_of_star_j - np.median(flux_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
+            plt.hist((flux_of_star_j - np.median(flux_of_star_j)) / np.median(flux_of_star_j) * 100, alpha=0.5, label='star {}'.format(j+1), histtype='step', color=s_m.to_rgba(fluxt_stars[j]))
+            #excess_var.append(Excess_variance(mag_of_star_j, magErr_of_star_j))
+            #print(Excess_variance(mag_of_star_j, magErr_of_star_j))
             ii+=1
 
+        plt.hist(excess_var, alpha=0.5, label='star {}'.format(j+1), histtype='step', color=s_m.to_rgba(fluxt_stars[j]))
+        print(excess_var)
         #plt.ylabel('MJD', fontsize=17)
-        plt.xlabel('(Flux [nJy] of LSST - median)/median', fontsize=17)
-        #plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        plt.xlabel('(flux_j - flux_median) / flux_median', fontsize=17)
+        plt.title('Percentage of deviation from median, in flux', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         #plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
         plt.show()
@@ -1727,7 +1756,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('offset Flux [nJy] from median', fontsize=15)
-        plt.legend(loc=9, ncol=5)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
         plt.show()
 
@@ -1778,6 +1807,32 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('offset Flux [nJy] from median', fontsize=15)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+        plt.show()
+
+        plt.figure(figsize=(10,6))
+        for i in range(nstars):
+            fs_star = (np.array(stars['star_{}_fs'.format(i+1)])).flatten() #* scaling
+            fs_star_err = np.ndarray.flatten(np.array(stars['star_{}_fserr'.format(i+1)])) #* scaling
+            
+            #Dates = np.array(stars['dates'])
+            new_dates = dates_aux
+            j, = np.where(saturated_stars==i+1)
+            
+            norm = matplotlib.colors.Normalize(vmin=min(fluxt_stars),vmax=max(fluxt_stars))
+            c_m = matplotlib.cm.plasma
+
+            # create a ScalarMappable and initialize a data structure
+            s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+            s_m.set_array([])
+            T = np.linspace(min(fluxt_stars),max(fluxt_stars),nstars)
+
+            if len(j)==0:
+                plt.hist(fs_star - np.median(fs_star), alpha=0.5, label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxt_stars[i]))
+  
+        plt.xlabel('MJD', fontsize=15)
+        plt.ylabel('offset Flux [nJy] from median', fontsize=15)
         plt.legend(loc=9, ncol=5)
 
         plt.show()
@@ -1823,8 +1878,34 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         plt.ylabel('Difference Flux [nJy]', fontsize=15)    
         plt.xlabel('MJD', fontsize=15)
-        plt.legend(loc=9, ncol=5)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         
+        plt.show()
+
+        plt.figure(figsize=(10,6))
+
+        for i in range(nstars):
+            f_star = np.array(stars['star_{}_f'.format(i+1)]) #* scaling
+            f_star_err = np.array(stars['star_{}_ferr'.format(i+1)]) #* scaling
+            
+            #Dates = np.array(stars['dates'])
+            j, = np.where(saturated_stars==i+1)
+            
+            norm = matplotlib.colors.Normalize(vmin=min(fluxt_stars),vmax=max(fluxt_stars))
+            c_m = matplotlib.cm.plasma
+
+            # create a ScalarMappable and initialize a data structure
+            s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+            s_m.set_array([])
+            T = np.linspace(min(fluxt_stars),max(fluxt_stars),nstars)
+
+            if len(j)==0:
+                plt.hist(f_star - np.median(f_star), alpha=0.5, label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxt_stars[i]))
+  
+        #plt.xlabel('MJD', fontsize=15)
+        plt.xlabel('offset Flux [nJy] from median', fontsize=15)
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
         plt.show()
 
 
