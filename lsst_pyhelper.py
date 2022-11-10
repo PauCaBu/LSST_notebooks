@@ -33,10 +33,13 @@ import photometric_calib as pc
 from astropy.table import Table, join, Column
 import decimal
 import seaborn as sns
+from scipy import special
+
 
 
 bblue='#0827F5'
 dark_purple = '#2B018E'
+lilac='#a37ed4'
 
 detector_nomenclature= {'S29':1, 'S30':2, 'S31':3, 'S28':7, 'S27':6, 'S26':5, 'S25':4, 'S24':12, 'S23':11, 'S22':10, 'S21':9, 'S20':8, 'S19':18, 'S18':17, 'S17':16, 'S16':15, 'S15':14, 'S14':13, 'S13':24, 'S12':23, 'S11':22, 'S10':21, 'S9':20,'S8':19, 'S7':31, 'S6':30, 'S5':29, 'S4':28, 'S3':27, 'S2':26, 'S1':25, 'N29':60, 'N30':61, 'N31':62, 'N28':59, 'N27':58, 'N26':57, 'N25':56, 'N24':55, 'N23':54, 'N22':53, 'N21':52, 'N20':51, 'N19':50, 'N18':49, 'N17':48, 'N16':47, 'N15':46, 'N14':45, 'N13':44, 'N12':43, 'N11':42, 'N10':41, 'N9':40,'N8':39, 'N7':38, 'N6':37, 'N5':36, 'N4':35, 'N3':34, 'N2':33, 'N1':32 }
 ccd_name = dict(zip(detector_nomenclature.values(), detector_nomenclature.keys()))
@@ -680,11 +683,17 @@ def values_across_source(exposure, ra, dec , x_length, y_length, stat='median', 
         adu_values = np.median(exp_cutout_array, axis=0)
     fluxes = [exp_photocalib.instFluxToNanojansky(f, obj_pos_2d) for f in adu_values]
 
+    ai, aip, bi, bip = special.airy(fluxes)
+
+
     f, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [1, 2]}, sharex=True, figsize=(10,6))
     ax1.set_title(title_plot, fontsize=17)
     ax1.imshow(exp_cutout_array)
     ax1.scatter(x_length, y_length, color='red', s=20)
-    ax2.bar(range(len(adu_values)), fluxes, color = 'm')
+    ax2.plot(range(len(adu_values)), ai)
+    ax2.plot(range(len(adu_values)), bi)
+
+    ax2.bar(range(len(adu_values)), fluxes, color = lilac)
     ax2.set_ylabel('Flux [nJy]', fontsize=17)
     ax2.set_xlabel('x-axis pixels', fontsize=17)
     ax1.set_ylabel('y-axis pixels', fontsize=17)
