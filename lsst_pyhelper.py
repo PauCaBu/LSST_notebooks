@@ -456,7 +456,7 @@ def Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra, dec, visits, cc
     return
 
 
-def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20):
+def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20, field='', name=''):
     """
     Plots the calibrated and difference-imaged exposure cropped to the location of ra,dec
     -----
@@ -544,6 +544,10 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         plt.title('Coadd template')
 
         plt.tight_layout()
+
+
+        if i == 0:
+            plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/{}_{}_{}_one_stamp.jpeg'.format(field, field, ccd_name[ccd_num], name), bbox_inches='tight', dpi=300)
         plt.show()
         
         
@@ -1089,9 +1093,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             print('DATE: ', dates_aux[i])
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', r_aux)
-            Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout)
-            values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}'.format(save_as, sfx))
-            values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}'.format(save_as, sfx))
+            Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=r_aux, cutout=cutout, field=field, name=title)
+            #values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}'.format(save_as, sfx))
+            #values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}'.format(save_as, sfx))
             
        
 
@@ -1099,53 +1103,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         expTime = float(calexp.getInfo().getVisitInfo().exposureTime)
         print('exposure Time: ', expTime)
-        
-        #calib_path = main_path + 'calibration/calibration_scaling_{}_{}_{}_fwhm.npz'.format(field, ccd_name[ccd_num], factor_star)
-        
-        #magzero_image = photocalib_coadd.instFluxToMagnitude(1) #pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff) #float(row.magzero)
-        
-
 
         print('calibration mean: ', calib_image)
-        #calib = pc.DoCalibration(repo, visits_aux[i], ccd_num, collection_diff, config=config)
-        #calib_mean = 1#calib[0]
-        #calib_intercept = 0#calib[1]
-        
-        #my_calib.append(calib_mean)
-        #my_calib_inter.append(calib_intercept)
-
-        #if not os.path.isfile(calib_path):
-        #    
-        #    #print(calib_path, ' doesnt exist')
-        #    if i == 0:
-        #        calib = pc.DoCalibration(repo, visits_aux[0], ccd_num, collection_diff, config=config) 
-        #        calib_mean0 = calib[0] #calib_mean
-        #        calib_intercept0 = calib[1] #calib_intercept
-        #    
-        #    calib_rel = pc.DoRelativeCalibration(repo, visits_aux[0], calib_mean0, calib_intercept0, visits_aux[i], ccd_num, collection_diff, config=config) 
-        #    calibRel_mean = calib_rel[0]
-        #    calibRel_intercept = calib_rel[1]
-
-        #    calib_relative.append(calibRel_mean)
-        #    calib_relative_intercept.append(calibRel_intercept)
-        #else:
-        #    npzfile = np.load(calib_path)
-        #    calib_relative = npzfile['x']
-        #    calib_relative_intercept= npzfile['y'] #np.zeros(len(calib_relative)) #
-        #    calibRel_mean = calib_relative[i]
-        #    calibRel_intercept = calib_relative_intercept[i]
-
-        #if i == 0:
-            #flux_reference = flux_coadd[0]
-            #fluxerr_reference = fluxerr_jsky_coadd 
-            #calib_reference = calib_image #photocalib_coadd.getCalibrationMean()
-            #magzero_reference = magzero_image
-        
-        #scaler = 1 # flux_reference/flux_coadd[0] * calib_reference/calib_image #10**(0.4*(magzero_reference - magzero_image))
-        #scaling.append(scaler)
-
-        #print('scaling factor between images: ', scaler)
-
 
         flux_physical = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d)
         print('Flux and Flux error in nanoJansky: ',flux_physical)
@@ -1153,24 +1112,18 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         # Here I try my calibration: 
 
         flux_jsky = flux_physical.value
-        fluxerr_jsky = flux_physical.error
+        fluxerr_jsky = flux_physical.error#flux_jsky * np.sqrt((calib_image/calib_image_err)**2 + (flux[0]/fluxerr[0])**2)
 
         flux_physical_coadd = photocalib_coadd.instFluxToNanojansky(flux_coadd[0], fluxerr_coadd[0], obj_pos_2d)
 
         flux_jsky_coadd = flux_physical_coadd.value 
-        fluxerr_jsky_coadd = flux_physical_coadd.error
+        fluxerr_jsky_coadd = flux_physical_coadd.error #flux_jsky_coadd * np.sqrt((calib_image/calib_image_err)**2 + (flux_coadd[0]/fluxerr_coadd[0])**2) # good error
 
         magzero.append(flux_jsky_coadd/flux_coadd[0])
-        #scaler = flux_reference/flux_jsky_coadd
-        #print('for now, we not apply scaling')
-        #flux_jsky*=scaler 
-        #flux_jsky_coadd*=scaler
-        #fluxerr_jsky*=scaler
-        #fluxerr_jsky_coadd*=scaler
         
         flux_physical_cal = photocalib_cal.instFluxToNanojansky(flux_cal[0], fluxerr_cal[0], obj_pos_2d)
         flux_jsky_cal = flux_physical_cal.value 
-        fluxerr_jsky_cal = flux_physical_cal.error 
+        fluxerr_jsky_cal = flux_physical_cal.error #flux_jsky_cal * np.sqrt((calib_image/calib_image_err)**2 + (flux_cal[0]/fluxerr_cal[0])**2)
 
 
         f = (flux_jsky + flux_jsky_coadd)*1e-9 
@@ -1188,45 +1141,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         mag_ab_coadd = mags_coadd[0]
         mag_ab_coadd_err = mags_coadd[1]
-        #((-2.5*(fluxerr_jsky)/(flux_jsky *np.log(10)))**2 + (-2.5*(fluxerr_jsky_coadd)/(flux_jsky_coadd*np.log(10)))**2)**1/2 #mag_diff.error
-
-        #zero_set_aux *= photocalib_cal.instFluxToNanojansky(flux[0], obj_pos_2d)/coadd_photocalib.instFluxToNanojansky(flux[0], obj_pos_2d)
-        #zero_set_aux += photocalib_cal.getInstFluxAtZeroMagnitude()
         
-        #
-        #row = magzero_outputs[magzero_outputs['visit']==visits[i]]
-        #print(row)
-
-        
-        #magzero_template = pc.MagAtOneCountFlux(repo, visits[i], ccd_num, collection_diff)
-
-        #flux_at_zero_magnitude_img = photocalib.getInstFluxAtZeroMagnitude()
-        #flux_at_zero_magnitude_img_cal = photocalib_cal.getInstFluxAtZeroMagnitude()
-        #flux_at_zero_magnitude_img_coadd = photocalib_coadd.getInstFluxAtZeroMagnitude()
-        
-        #f_scaling = flux_at_zero_magnitude_ref/flux_at_zero_magnitude_img #
-        #f_scaling_cal = flux_at_zero_magnitude_ref_cal/flux_at_zero_magnitude_img_cal #10**((magzero_reference - magzero_image)/-2.5)
-        #f_scaling_coadd = flux_at_zero_magnitude_ref_coadd/flux_at_zero_magnitude_img_coadd #10**((magzero_reference - magzero_image)/-2.5)
-        
-        #phot = pc.mag_stars_calculation(repo, visits[i], ccd_num, collection_diff)
-        #DF = phot['DataFrame']
-        #seeing = np.unique(np.array(DF.seeing))[0]
-        
-        #alpha_scaling = phot['panstarss_counts']/phot['calcbyme_counts']
-        #scale_coadd = phot['calcbyme_counts']/phot['calcbyme_counts_coadd']
-        #print('alpha scaling: ', alpha_scaling)
-        
-        #f_scaling = alpha_scaling * expTime #10**((magzero_firstImage - magzero_image_i)/-2.5)
-        #scaling.append(f_scaling)
-        #scaling_coadd.append(scale_coadd)
-
-        #flux_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).value
-        #fluxerr_nJy = photocalib.instFluxToNanojansky(flux[0], fluxerr[0], obj_pos_2d).error
-
         print('flux before scaling: ', flux[0])
-        #print('f scaling : ', f_scaling)
-        #print('flux after scaling: ', flux[0]*f_scaling)
-        #print('flux of source in template: ', flux_coadd[0]*f_scaling)
 
         if flux[0] > 1500 :
             print('This source is bad subtracted')
@@ -1236,17 +1152,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         Fluxes_unscaled.append(flux_coadd[0])
         Fluxes_err_unscaled.append(fluxerr_coadd[0])
 
-        #Fluxes.append((flux[0] + flux_coadd[0]*scale_coadd) * f_scaling) 
-        #Fluxes_err.append((fluxerr[0]+ fluxerr_coadd[0]*scale_coadd) * f_scaling)
-
-        #Fluxes_scaled.append(flux[0]*f_scaling)
-        #Fluxes_err_scaled.append(fluxerr[0]*f_scaling)
-
         Fluxes_cal.append(flux_jsky_cal)
         Fluxeserr_cal.append(fluxerr_jsky_cal)
-
-        #Fluxes_annuli.append((flux_an[0]+flux_coadd_an[0])*f_scaling)
-        #Fluxeserr_annuli.append((fluxerr_an[0]+fluxerr_coadd_an[0])*f_scaling)
 
         Fluxes_njsky.append(flux_jsky)
         Fluxeserr_njsky.append(fluxerr_jsky)
@@ -1254,22 +1161,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         Fluxes_njsky_coadd.append(flux_jsky_coadd)
         Fluxeserr_njsky_coadd.append(fluxerr_jsky_coadd)
 
-        #Fluxes_njsky_coadd.append(flux_co[0])
-        #Fluxeserr_njsky_coadd.append(fluxerr_co[0])
-
-
         Mag.append(mag_diff_ab)
         Magerr.append(mag_diff_ab_err)
 
         Mag_coadd.append(mag_ab_coadd)
         Magerr_coadd.append(mag_ab_coadd_err)
-        # Adding photometry calculation step: 
-
         
-        #m_instrumental = -2.5*np.log10((flux[0]+flux_coadd[0])/float(calexp.getInfo().getVisitInfo().exposureTime))
         airmass = float(calexp.getInfo().getVisitInfo().boresightAirmass)
-        #Z_value = np.unique(np.array(phot.Z_value))
-        #k_value = np.unique(np.array(phot.k_value))
         Airmass.append(airmass)
         #Mag.append(pc.Calibration([m_instrumental, airmass], Z_value, k_value))
         #Magerr.append()
@@ -1294,22 +1192,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #plt.legend()
     plt.show()
 
-    # plorrint calib intercept
-
-    #plt.figure(figsize=(10,6))
-    #plt.plot(dates_aux, my_calib_inter, '*', color='black', label='My calib')
-    #plt.plot(dates_aux, calib_lsst, 'o', color='blue', label='lsst cal')
-    
-    #plt.xlabel('MJD', fontsize=17)
-    #plt.ylabel('Calibration intercept', fontsize=17)
-    #plt.title('Calibration scaling intercept', fontsize=17)
-    #plt.legend()
-    #plt.show()
-    #if not os.path.isfile(calib_path):
-    #    np.savez(calib_path, x = calib_relative, y = calib_relative_intercept)
-        #calib_relative.savez('calibration/calibration_scaling_{}_{}'.format(field, ccd_num))
-        #calib_relative_intercept.savez('calibration/calibration_scaling_inter_{}_{}'.format(field, ccd_num))
-    # calib relative 
 
     plt.figure(figsize=(10,6))
     #plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', linestyle='--')
@@ -1360,7 +1242,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         if tp=='before_ID':
             random.seed(15030)
-            random_indexes = random.sample(range(len(stars_table)), int(len(stars_table)*0.18))
+            random_indexes = random.sample(range(len(stars_table)), int(len(stars_table)*0.25))
             stars_table = stars_table.loc[random_indexes]
             stars_table = stars_table.reset_index()
             #pass
@@ -1544,7 +1426,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
 
         color_correc = pd.Series(ps1_info.g_i*color_term ,index=ps1_info.index).to_dict()
-        print(color_correc)
+        #print(color_correc)
         plt.figure(figsize=(10,10))
         abs_zero = 0#.04
         for i in range(len(visits_aux)):
@@ -1594,6 +1476,21 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.figure(figsize=(10,10))
         ii = 0
+        stars_lsst_calib = stars_table[columns_mag]
+        print(stars_lsst_calib)
+        
+        stars_lsst_calib = stars_lsst_calib.apply(pc.ABMagToFlux)
+        stars_lsst_calib = stars_lsst_calib*1e9
+        
+        print(stars_lsst_calib)
+
+        #print(stars_lsst_calib.median(axis=1))
+        median_stars_lsst = pd.Series(stars_lsst_calib.median(axis=1))
+        #stars_lsst_calib = stars_lsst_calib.reset_index()
+        stars_lsst_calib = stars_lsst_calib.sub(median_stars_lsst, axis='index')
+        print(stars_lsst_calib)
+        stars_lsst_mean = np.array([np.mean(stars_lsst_calib[i]) for i in columns_mag])
+        stars_lsst_std = np.array([np.std(stars_lsst_calib[i]) for i in columns_mag])
 
         for j in range(len(stars_table)):
             #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
@@ -1667,7 +1564,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.figure(figsize=(10,10))
         ii = 0
         
-        excess_var = []
         for j in range(len(stars_table)):
             #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
             mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
@@ -1677,13 +1573,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
             #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
             plt.hist((flux_of_star_j - np.median(flux_of_star_j)) / np.median(flux_of_star_j) * 100, alpha=0.5, label='star {}'.format(j+1), histtype='step', color=s_m.to_rgba(fluxt_stars[j]))
-            #excess_var.append(Excess_variance(mag_of_star_j, magErr_of_star_j))
-            #print(Excess_variance(mag_of_star_j, magErr_of_star_j))
             ii+=1
 
-        plt.hist(excess_var, alpha=0.5, label='star {}'.format(j+1), histtype='step', color=s_m.to_rgba(fluxt_stars[j]))
-        print(excess_var)
-        #plt.ylabel('MJD', fontsize=17)
         plt.xlabel('(flux_j - flux_median) / flux_median', fontsize=17)
         plt.title('Percentage of deviation from median, in flux', fontsize=17)
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -1737,8 +1628,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #print('Here is the dataset of the stars calculated: ')
         #print(stars)
         column_stars_diff_flux = ['star_{}_f'.format(i+1) for i in range(nstars)]
-        diff_flux_stars = stars[column_stars_diff_flux]
-        max_value = max(list(stars.index))
+        #diff_flux_stars = stars[column_stars_diff_flux]
+        #max_value = max(list(stars.index))
 
         # plotting flxs of stars 
         for i in range(nstars):
@@ -1789,8 +1680,17 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             ax.errorbar(dates_aux, ft_star, yerr = ft_star_err, fmt = 'o', ls='-', color=s_m.to_rgba(fluxt_stars[markevery]))
         # plotting flxs of stars 
         #plt.title('Flux measured on coadd template', fontsize=17)
-        plt.show()
+        
+        stars_science_flux_columns = ['star_{}_fs'.format(i+1) for i in range(nstars)]
+        stars_science_flux = stars[stars_science_flux_columns]
+        stars_science_flux -= stars_science_flux.median()
+        #stars_science_flux = stars_science_flux.reset_index()
+        print(stars_science_flux)
+        stars_science_rms_byEpoch = np.array([np.std(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
+        stars_science_mean_byEpoch = np.array([np.mean(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
 
+        
+        plt.show()
         plt.figure(figsize=(10,6))
         for i in range(nstars):
             fs_star = (np.array(stars['star_{}_fs'.format(i+1)])).flatten() #* scaling
@@ -1946,19 +1846,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.savefig('light_curves/{}/{}_{}_random_stars_wdipoles_sumwTemp.jpeg'.format(field, field, ccd_name[ccd_num]), bbox_inches='tight')
     plt.show()
 
-    #f, (ax1, ax2, ax3) = plt.subplots(3, 1, gridspec_kw={'height_ratios': [2, 1, 1]},sharex=True, figsize=(10,6))
-    plt.figure(figsize=(10,6))
-
-
-    if SIBLING!=None and sfx == 'flx':
-        x, y, yerr = compare_to(SIBLING, sfx='mag', factor=0.75)
-        f, ferr = pc.ABMagToFlux(y, yerr)
-        plt.errorbar(x-min(x),f*10 - np.median(f*10), yerr=ferr*10,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
-    
-    #plt.show()
-
-    #plt.figure(figsize=(10,6))
-
+ 
     if do_zogy:
         zogy = zogy_lc(repo, collection_calexp, collection_coadd, ra, dec, ccd_num, visits, r_aux, instrument = 'DECam', plot_diffexp=plot_zogy_stamps, plot_coadd = plot_coadd, cutout=cutout)
         print(zogy)
@@ -1970,94 +1858,63 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     area_annuli = np.pi * (5*r_aux)**2 - np.pi * (2*r_aux)**2 
     source_of_interest = pd.DataFrame()
     source_of_interest['dates'] = dates_aux # dates 
-    #source_of_interest['flux'] = np.array(Fluxes) # flux template + difference 
-    #source_of_interest['flux_err'] = np.array(Fluxes_err) # error flux template + difference 
-    #source_of_interest['flux_scaled'] = np.array(Fluxes_scaled) # difference flux 
-    #source_of_interest['flux_err_scaled'] = np.array(Fluxes_err_scaled) #difference flux error 
-    source_of_interest['flux_unscaled'] = np.array(Fluxes_unscaled) # unscaled flux template + differenc
-    source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled) # unscaled error flux template + difference 
-    #source_of_interest['flux_annuli'] = np.array(Fluxes_annuli) #* area_source/area_annuli # flux of annuli template + difference 
-    #source_of_interest['flux_err_annuli'] = np.array(Fluxeserr_annuli) # error flux of annuli template + difference 
-    source_of_interest['flux_nJy'] = np.array(Fluxes_njsky)
-    source_of_interest['fluxerr_nJy'] = np.array(Fluxeserr_njsky) 
-    source_of_interest['flux_nJy_coadd'] = np.array(Fluxes_njsky_coadd)
-    source_of_interest['fluxerr_nJy_coadd'] = np.array(Fluxeserr_njsky_coadd)
-    source_of_interest['flux_nJy_cal'] = np.array(Fluxes_cal)
-    source_of_interest['fluxerr_nJy_cal'] = np.array(Fluxeserr_cal)
-
-    
+    source_of_interest['flux_unscaled'] = np.array(Fluxes_unscaled) # unscaled flux template 
+    source_of_interest['flux_err_unscaled'] = np.array(Fluxes_err_unscaled) # unscaled error flux template 
+    source_of_interest['flux_nJy'] = np.array(Fluxes_njsky) # difference flux
+    source_of_interest['fluxerr_nJy'] = np.array(Fluxeserr_njsky) # difference flux error
+    source_of_interest['flux_nJy_coadd'] = np.array(Fluxes_njsky_coadd) # template flux 
+    source_of_interest['fluxerr_nJy_coadd'] = np.array(Fluxeserr_njsky_coadd) # template flux error
+    source_of_interest['flux_nJy_cal'] = np.array(Fluxes_cal) # science flux
+    source_of_interest['fluxerr_nJy_cal'] = np.array(Fluxeserr_cal) # science flux error
     source_of_interest['Mg_coadd'] = Mag_coadd
     source_of_interest['Mg_err_coadd'] = Magerr_coadd
     source_of_interest['Exptimes'] = ExpTimes
-    #source_of_interest['flux_annuli_subtracted_to_median'] =  source_of_interest['flux_annuli'] - np.median(source_of_interest['flux_annuli']) #/source_of_interest['flux_annuli_norm']
-    #source_of_interest['flux_annuli_norm'] = np.array(Fluxes_annuli)/np.array(Fluxes_annuli).sum()
-    #source_of_interest['flux_corrected'] = source_of_interest['flux'] - source_of_interest['flux_annuli_subtracted_to_median'] #/source_of_interest['flux_annuli_norm'] 
     
-    #source_of_interest['flux_cal'] = np.array(Fluxes_cal) # scaled flux of science 
-    #source_of_interest['flux_err_cal'] = np.array(Fluxeserr_cal) # scaled error flux of science 
-    
-    #print(source_of_interest['flux_annuli_subtracted_to_median'])
-    
-    source_of_interest['Mg'] = Mag #photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).value #-2.5*np.log10(source_of_interest.flux + flux_coadd) + magzero_image
-    source_of_interest['Mg_err'] = Magerr#photocalib.instFluxToMagnitude(flux[0], fluxerr[0], obj_pos_2d).error #np.sqrt(2.5*source_of_interest.flux_err/(source_of_interest.flux * np.log(10)))
-
+    source_of_interest['Mg'] = Mag 
+    source_of_interest['Mg_err'] = Magerr
     source_of_interest['visit'] = visits_aux
     source_of_interest = source_of_interest.sort_values(by='dates')
 
-    if sfx=='mag':
-        plt.errorbar(source_of_interest.dates, source_of_interest.Mg - np.median(source_of_interest.Mg), yerr = source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos coadd + diff', color='#0827F5', ls ='dotted')
-        plt.errorbar(source_of_interest.dates, source_of_interest.Mg_coadd - np.median(source_of_interest.Mg_coadd), yerr = source_of_interest.Mg_err_coadd, capsize=4, fmt='s', label ='AL Cáceres-Burgos coadd', color='#082785', ls ='dotted')
+    #if sfx=='mag':
+    #    plt.errorbar(source_of_interest.dates, source_of_interest.Mg - np.median(source_of_interest.Mg), yerr = source_of_interest.Mg_err, capsize=4, fmt='s', label ='AL Cáceres-Burgos coadd + diff', color='#0827F5', ls ='dotted')
+    #    plt.errorbar(source_of_interest.dates, source_of_interest.Mg_coadd - np.median(source_of_interest.Mg_coadd), yerr = source_of_interest.Mg_err_coadd, capsize=4, fmt='s', label ='AL Cáceres-Burgos coadd', color='#082785', ls ='dotted')
+    #    plt.ylabel('Excess AB magnitude', fontsize=15)
+    
+    ## template and science image: 
+    plt.figure(figsize=(10,6))
+    plt.title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy_coadd), yerr = source_of_interest.fluxerr_nJy_coadd, capsize=4, fmt='s', label ='template', color='red', ls ='dotted')
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy_cal - np.median(source_of_interest.flux_nJy_cal), yerr = source_of_interest.fluxerr_nJy_cal, capsize=4, fmt='s', label ='science', color='blue', ls ='dotted')
+    #plt.fill_between(source_of_interest.dates, stars_science_mean_byEpoch-stars_science_rms_byEpoch,  stars_science_mean_byEpoch+stars_science_rms_byEpoch, alpha=0.3, label = 'stars 1-sigma dev')
+    plt.fill_between(source_of_interest.dates, stars_lsst_mean- stars_lsst_std, stars_lsst_mean + stars_lsst_std, alpha=0.5, label = 'stars 1-sigma dev', color= lilac)
+    
+    plt.legend()
+    plt.ylabel('Excess flux nJy', fontsize=15 )
+    if save and save_as!='':
+        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/{}_{}_{}_{}_template_science.jpeg'.format(field, field, ccd_name[ccd_num], save_as, sfx), bbox_inches='tight')
+    
 
-        plt.ylabel('Excess AB magnitude', fontsize=15)
-    
-    else: 
-        #plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy + source_of_interest.flux_nJy_coadd), yerr = np.sqrt(source_of_interest.fluxerr_nJy**2 + source_of_interest.fluxerr_nJy_coadd**2) , capsize=4, fmt='s', label ='AL Cáceres-Burgos [diff + template]', color='#0827F5', ls ='dotted')
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy_coadd - np.median(source_of_interest.flux_nJy_coadd), yerr = source_of_interest.fluxerr_nJy_coadd, capsize=4, fmt='s', label ='AL Cáceres-Burgos coadd', color='red', ls ='dotted')
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy, yerr = source_of_interest.fluxerr_nJy, capsize=4, fmt='s', label ='AL Cáceres-Burgos diff', color='magenta', ls ='dotted')
-        plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy_cal - np.median(source_of_interest.flux_nJy_cal), yerr = source_of_interest.fluxerr_nJy_cal, capsize=4, fmt='s', label ='AL Cáceres-Burgos cal', color='blue', ls ='dotted')
-        
-        #for i in range(len(source_of_interest)):
-        #    plt.text(np.array(source_of_interest.dates)[i], 0, '{0:.8g}'.format(magzero[i]), rotation=45)
-        
-        plt.ylabel('Excess flux nJy', fontsize=15 )
-        #plt.axhline(0, color='grey', linestyle='--')
-    
-    
-    #plt.ylabel('Excess Flux in arbitrary units', fontsize=15 )
+    #Difference
 
-    #for i in range(len(source_of_interest.dates)):
-    #    plt.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Airmass[i]), rotation=45)
-    #plt.text()
-    plt.legend(ncol=2)
+    #plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy, yerr = source_of_interest.fluxerr_nJy, capsize=4, fmt='s', label ='AL Cáceres-Burgos diff', color='magenta', ls ='dotted')
+    #plt.ylabel('Excess flux nJy', fontsize=15 )
+    #plt.legend(ncol=2)
     #ax2 = plt.subplot(212)
     
-    #if SIBLING!=None:
-        #ax2.plot(source_of_interest.dates, source_of_interest.flux - np.median(source_of_interest.flux) - y, '*' , color=dark_purple , label='residuals', linestyle ='--')
-        #ax2.legend()
-        #ax2.axhline(0, color='grey', linestyle='--')
+    if SIBLING!=None and sfx == 'flx':
+        x, y, yerr = compare_to(SIBLING, sfx='mag', factor=0.75)
+        f, ferr = pc.ABMagToFlux(y, yerr)
+        pass
+        #plt.errorbar(x-min(x),f*10 - np.median(f*10), yerr=ferr*10,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
 
-        #for i in range(len(source_of_interest.dates)):
-        #    ax2.text(np.array(source_of_interest.dates)[i], 0, '{0:.3g}"'.format(Seeing[i]), rotation=45)
+    #plt.title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
 
-
-    #ax3.set_xlabel('MJD', fontsize=15)
-    
-    
-    plt.title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
-    #ax3.errorbar(source_of_interest.dates, source_of_interest.flux_annuli, yerr=source_of_interest.flux_err_annuli, capsize=4, fmt='s', label ='AL annuli Cáceres-Burgos [+template flux scaled]', color='#6600CC', ls ='dotted')
-    #plt.ylabel('ADU', fontsize=12)
-    #ax3.axhline(0, color='grey', linestyle='--')
-    #f.subplots_adjust(hspace=0)
-    #plt.legend(ncol=5)
-    
     if sparse_obs:
         plt.xscale('log')
 
     if save and save_as=='':
         plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/ra_{}_dec_{}_{}.jpeg'.format(ra,dec,sfx), bbox_inches='tight')
     
-    if save and save_as!='':
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}_{}.jpeg'.format(save_as, sfx), bbox_inches='tight')
     
     plt.show()
     
@@ -2066,7 +1923,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     if save_stamps:
         Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, list(source_of_interest.visit), ccd_num, cutout=cutout, s=r_aux, save_stamps=save_stamps, save_as=save_as+ '_stamps')
     
-    plt.show()
+        plt.show()
     
     if hist:
         norm = matplotlib.colors.Normalize(vmin=0,vmax=len(visits_aux))
@@ -2119,7 +1976,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
             title = '{}'.format(cands.SDSS12[index[i]])
             folder = '{}/'.format(field)
             name_file = (field + '_' + ccds[i] + '_ra_' + str(ra_agn[index[i]]) + '_dec_' + str(dec_agn[index[i]]) + '_calibLsst').replace('.', '_')
-            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r=10, factor=factor, save=True, save_as = folder + name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=10, well_subtracted=well_subtracted, field=field, factor_star = factor_star)
+            df = get_light_curve(repo, visits, collection_diff, collection_calexp, ccdnum, ra, dec, r=10, factor=factor, save=True, save_as = name_file, SIBLING = '/home/jahumada/Jorge_LCs/'+cands.internalID.loc[index[i]] +'_g_psf_ff.csv', title=title, show_stamps=show_stamps, do_zogy=False, collection_coadd=collection_coadd, plot_coadd=False, save_stamps=True, do_lc_stars=True, save_lc_stars=True, show_star_stamps=show_star_stamps, sfx=sfx, nstars=10, well_subtracted=well_subtracted, field=field, factor_star = factor_star)
             
             if len(df) != 0 or type(df)!=None:
 
