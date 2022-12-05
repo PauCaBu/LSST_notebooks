@@ -456,7 +456,7 @@ def Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra, dec, visits, cc
     return
 
 
-def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20, field='', name=''):
+def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20, sd=5, field='', name=''):
     """
     Plots the calibrated and difference-imaged exposure cropped to the location of ra,dec
     -----
@@ -470,7 +470,8 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
     visits : [ndarray] list of visits
     ccd_num : [int]
     cutout : [int]
-    s : [int] circular display 
+    s : [float] pixel radii for circular display in science and template image
+    sd : [float] pixel radii for circular display in difference image
     -----
     Output
     -----
@@ -518,7 +519,9 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         plt.contour(calexp_cutout_arr, levels=np.logspace(1.3, 2.5, 10), colors ='white', alpha=0.5)
         circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
         plt.gca().add_patch(circle)
-        
+        circle2 = plt.Circle((x_half_width, y_half_width), radius = sd, color='magenta', fill = False)
+        plt.gca().add_patch(circle2)
+
         plt.title('Calexp Image and Source Catalog')
 
         fig.add_subplot(1,3,2)
@@ -528,7 +531,7 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         plt.contour(diffexp_cutout_arr, levels=np.logspace(1.3, 2.2, 10), colors ='white', alpha=0.5)
 
         #plt.scatter(x_half_width, y_half_width, s=np.pi*s**2, facecolors='none', edgecolors='red')
-        circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
+        circle = plt.Circle((x_half_width, y_half_width), radius = sd, color='magenta', fill = False)
         plt.gca().add_patch(circle)
 
         plt.title('Diffexp Image and Source Catalog')
@@ -541,6 +544,8 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
         #plt.scatter(x_half_width, y_half_width, s=np.pi*s**2, facecolors='none', edgecolors='red')
         circle = plt.Circle((x_half_width, y_half_width), radius = s, color='red', fill = False)
         plt.gca().add_patch(circle)
+        circle2 = plt.Circle((x_half_width, y_half_width), radius = sd, color='magenta', fill = False)
+        plt.gca().add_patch(circle2)
         plt.title('Coadd template')
 
         plt.tight_layout()
@@ -969,7 +974,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data_cal = np.asarray(calexp.image.array, dtype='float')
         data_coadd = np.asarray(coadd.image.array, dtype='float')
         data_cal_bkg = np.asarray(calexpbkg.getImage().array,dtype='float')
-        bkg_rms = np.sqrt(np.mean(data_cal_bkg.flatten()**2))
+        bkg_rms = np.sqrt(np.mean((data_cal_bkg.flatten()- np.mean(data_cal_bkg.flatten()))**2))
 
         
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
@@ -1088,8 +1093,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], rd_aux, var = np.asarray(diffexp.variance.array, dtype='float')) # fixed aperture 
         flux_Fs, fluxerr_Fs, flag_FS = sep.sum_circle(data, [x_pix], [y_pix], factor*seeing, var = np.asarray(diffexp.variance.array, dtype='float'))
         #flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(diffexp.variance.array, dtype='float'))
-        flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], rs_aux, err = bkg_rms)
-        flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix], [y_pix], rs_aux, var = np.asarray(coadd.variance.array, dtype='float'))
+        flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], rs_aux, err = bkg_rms, gain=4)
+        flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix], [y_pix], rs_aux, err = np.asarray(coadd.variance.array, dtype='float'))
         #flux_coadd_an, fluxerr_coadd_an, flag_coadd = sep.sum_circann(data_coadd, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(coadd.variance.array, dtype='float'))
         
 
@@ -1100,7 +1105,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             print('DATE: ', dates_aux[i])
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', rs_aux)
-            Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=rs_aux, cutout=cutout, field=field, name=title)
+            Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=rs_aux, sd=rd_aux, cutout=cutout, field=field, name=title)
             prof = flux_profile(calexp, ra, dec, 0.5, r_science)
             profiles['{}'.format(visits_aux[i])] = prof
             #values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}'.format(save_as, sfx))
@@ -1443,30 +1448,29 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         color_correc = pd.Series(ps1_info.g_i*color_term ,index=ps1_info.index).to_dict()
         #print(color_correc)
-        try:
-            plt.figure(figsize=(10,10))
-            abs_zero = 0#.04
-
-            stars_table = stars_table.dropna()
-            for i in range(len(visits_aux)):
-                mag_unc_err = np.sqrt(np.array(stars_table['base_PsfFlux_magErr_{}'.format(visits_aux[i])])**2 + (ps1_info.g_i*color_term_rms)**2 )
-                plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])].astype(float)) - np.array(ps1_info.gmag) - ps1_info.g_i*color_term - abs_zero ,yerr=mag_unc_err, fmt='*', capsize=4, label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
-                #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
-            #stars_table['color_color_term'] = ps1_info.g_i*color_term 
-            plt.xlabel('PS1 magnitudes', fontsize=17)
-            plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
-            
-            #color_term = 20e-3
-            #plt.plot(ps1_info.gmag, ps1_info.g_r*color_term , '*', color='green', markersize=10, alpha=0.5, linestyle='--', label='g-r * color term')
-            #plt.plot(ps1_info.gmag, ps1_info.g_i*color_term , '*', color='black', markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')
-            
-            plt.ylabel('Magnitude - PS1 magnitude', fontsize=17)
-            plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            plt.title('Difference between magnitudes', fontsize=17)
-            #plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
-            plt.show()
-        except:
-            pass
+        #try:
+        #    plt.figure(figsize=(10,10))
+        #    abs_zero = 0#.04
+        #    stars_table = stars_table.dropna()
+        #    for i in range(len(visits_aux)):
+        #        mag_unc_err = np.sqrt(np.array(stars_table['base_PsfFlux_magErr_{}'.format(visits_aux[i])])**2 + (ps1_info.g_i*color_term_rms)**2 )
+        #        plt.errorbar(np.array(ps1_info.gmag) , np.array(stars_table['base_PsfFlux_mag_{}'.format(visits_aux[i])].astype(float)) - np.array(ps1_info.gmag) - ps1_info.g_i*color_term - abs_zero ,yerr=mag_unc_err, fmt='*', capsize=4, label=' visit {}'.format(visits_aux[i]), color=s_m.to_rgba(T[i]), markersize=10, alpha=0.5, linestyle='--')
+        #        #plt.plot(np.array(ps1_mags.ps1_mag), np.array(ps1_mags.ps1_mag) - np.array(ps1_mags.ps1_mag), label='PS1')
+        #    #stars_table['color_color_term'] = ps1_info.g_i*color_term 
+        #    plt.xlabel('PS1 magnitudes', fontsize=17)
+        #    plt.plot(np.sort(np.array(ps1_info.gmag)), np.array(ps1_info.gmag) - np.array(ps1_info.gmag),'*', markersize=10, label='PS1', color='black', linestyle='--')
+        #    
+        #    #color_term = 20e-3
+        #    #plt.plot(ps1_info.gmag, ps1_info.g_r*color_term , '*', color='green', markersize=10, alpha=0.5, linestyle='--', label='g-r * color term')
+        #    #plt.plot(ps1_info.gmag, ps1_info.g_i*color_term , '*', color='black', markersize=10, alpha=0.5, linestyle='--', label='g-i * color term')
+        #    
+        #    plt.ylabel('Magnitude - PS1 magnitude', fontsize=17)
+        #    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        #    plt.title('Difference between magnitudes', fontsize=17)
+        #    #plt.savefig('light_curves/{}/{}_{}_magnitude_and_colors.png'.format(field, field, ccd_num), bbox_inches='tight')
+        #    plt.show()
+        #except:
+        #    pass
         norm = matplotlib.colors.Normalize(vmin=min(fluxt_stars),vmax=max(fluxt_stars))
         c_m = matplotlib.cm.plasma
 
@@ -1476,15 +1480,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         columns_mag = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
         columns_magErr = ['base_PsfFlux_magErr_{}'.format(v) for v in visits_aux]
-        fig, axs = plt.subplots(int(np.sqrt(nstars))+1,int(np.sqrt(nstars))+1 , figsize=(10, 6), constrained_layout=True)
-        #fig.set_title('Flux of stars measured by LSST')
-        for ax, markevery in zip(axs.flat, range(nstars)):           
-            ax.set_title(f'star number {markevery+1}')
-            magss = np.array(stars_table.loc[markevery][columns_mag])
-            magsserr = np.array(stars_table.loc[markevery][columns_magErr])
-            flux = [pc.ABMagToFlux(m)*1e9 for m in magss]
-            #fluxErr  = [pc.ABMagToFlux()]
-            ax.errorbar(dates_aux, flux, fmt = 'o', ls='-', color=s_m.to_rgba(fluxt_stars[markevery]))
+        #fig, axs = plt.subplots(int(np.sqrt(nstars))+1,int(np.sqrt(nstars))+1 , figsize=(10, 6), constrained_layout=True)
+        ##fig.set_title('Flux of stars measured by LSST')
+        #for ax, markevery in zip(axs.flat, range(nstars)):           
+        #    ax.set_title(f'star number {markevery+1}')
+        #    magss = np.array(stars_table.loc[markevery][columns_mag])
+        #    magsserr = np.array(stars_table.loc[markevery][columns_magErr])
+        #    flux = [pc.ABMagToFlux(m)*1e9 for m in magss]
+        #    #fluxErr  = [pc.ABMagToFlux()]
+        #    ax.errorbar(dates_aux, flux, fmt = 'o', ls='-', color=s_m.to_rgba(fluxt_stars[markevery]))
         #here we plot the stars vs panstarss magnitude:
         
         norm = matplotlib.colors.Normalize(vmin=min(fluxt_stars),vmax=max(fluxt_stars))
@@ -1532,98 +1536,90 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.show()
 
 
-        plt.figure(figsize=(10,10))
-        ii = 0
+        #plt.figure(figsize=(10,10))
+        #ii = 0
 
-        #deviation_from_median = []
-        for j in range(len(stars_table)):
-            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
-            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
-            magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
-            fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
-            flux_of_star_j = fluxes_of_star_j[0]*1e9
-            fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
-            #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
-            plt.hist(flux_of_star_j - np.median(flux_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
-            ii+=1
+        ##deviation_from_median = []
+        #for j in range(len(stars_table)):
+        #    #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+        #    mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+        #    magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+        #    fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
+        #    flux_of_star_j = fluxes_of_star_j[0]*1e9
+        #    fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
+        #    #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
+        #    plt.hist(flux_of_star_j - np.median(flux_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
+        #    ii+=1
 
-        #plt.ylabel('MJD', fontsize=17)
-        plt.xlabel('Flux [nJy] of LSST - median', fontsize=17)
-        plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
-        plt.show()
+        ##plt.ylabel('MJD', fontsize=17)
+        #plt.xlabel('Flux [nJy] of LSST - median', fontsize=17)
+        #plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        #plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
+        #plt.show()
 
 
-        plt.figure(figsize=(10,10))
-        ii = 0
+        #plt.figure(figsize=(10,10))
+        #ii = 0
         
-        excess_var = []
-        for j in range(len(stars_table)):
+        #excess_var = []
+        #for j in range(len(stars_table)):
             #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
-            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
-            magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+        #    mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+        #    magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
             #fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
             #flux_of_star_j = fluxes_of_star_j[0]*1e9
             #fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
             #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
             #plt.hist(Excess_variance(mag_of_star_j, magErr_of_star_j), alpha=0.5, label='star {}'.format(j+1), histtype='step', color=s_m.to_rgba(fluxt_stars[j]))
-            excess_var.append(Excess_variance(mag_of_star_j, magErr_of_star_j))
+        #    excess_var.append(Excess_variance(mag_of_star_j, magErr_of_star_j))
             #print(Excess_variance(mag_of_star_j, magErr_of_star_j))
-            ii+=1
+        #    ii+=1
 
-        plt.hist(excess_var, color='black')
+        #plt.hist(excess_var, color='black')
         #print(excess_var)
-        #plt.ylabel('MJD', fontsize=17)
-        plt.xlabel('Excess Variance of stars', fontsize=17)
-        #plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        #plt.xlabel('Excess Variance of stars', fontsize=17)
+        #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         
         #plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
 
-        plt.figure(figsize=(10,10))
-        ii = 0
-        
-        for j in range(len(stars_table)):
-            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
-            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
-            magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
-            fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
-            flux_of_star_j = fluxes_of_star_j[0]*1e9
-            fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
-            #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
-            plt.hist((flux_of_star_j - np.median(flux_of_star_j)) / np.median(flux_of_star_j) * 100, alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
-            ii+=1
+        #plt.figure(figsize=(10,10))
+        #ii = 0
+        #
+        #for j in range(len(stars_table)):
+        #    #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
+        #    mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+        #    magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
+        #    fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
+        #    flux_of_star_j = fluxes_of_star_j[0]*1e9
+        #    fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
+        #    #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
+        #    plt.hist((flux_of_star_j - np.median(flux_of_star_j)) / np.median(flux_of_star_j) * 100, alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
+        #    ii+=1
 
-        plt.xlabel('(flux_j - flux_median) / flux_median', fontsize=17)
-        plt.title('Percentage of deviation from median, in flux', fontsize=17)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        #plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
-        plt.show()
+        #plt.xlabel('(flux_j - flux_median) / flux_median', fontsize=17)
+        #plt.title('Percentage of deviation from median, in flux', fontsize=17)
+        #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ##plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
+        #plt.show()
 
-        plt.figure(figsize=(10,10))
-        ii = 0
+        #plt.figure(figsize=(10,10))
+        #ii = 0
 
         #deviation_from_median = []
-        for j in range(len(stars_table)):
-            #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
-            mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
-            #magErr_of_star_j = np.array(stars_table.loc[j][columns_magErr])
-            #fluxes_of_star_j = pc.ABMagToFlux(mag_of_star_j, magErr_of_star_j)
-            #flux_of_star_j = fluxes_of_star_j[0]*1e9
-            #fluxErr_of_star_j = fluxes_of_star_j[1]*1e9
-            #plt.plot(dates_aux, mag_of_star_j - np.median(mag_of_star_j), '*', color=s_m.to_rgba(fluxt_stars[j]), linestyle='--', label='star {}'.format(j+1))
-            plt.hist(mag_of_star_j - np.median(mag_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
-            ii+=1
+        #for j in range(len(stars_table)):
+        #    mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
+        #    plt.hist(mag_of_star_j - np.median(mag_of_star_j), alpha=0.5, label='star {}'.format(j+1), color=s_m.to_rgba(fluxt_stars[j]))
+        #    ii+=1
 
         #plt.ylabel('MJD', fontsize=17)
-        plt.xlabel('AB mag of LSST - median', fontsize=17)
-        plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
-        plt.show()
+        #plt.xlabel('AB mag of LSST - median', fontsize=17)
+        #plt.title('Lightcurves of stars, measured by LSST', fontsize=17)
+        #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        #plt.savefig('/home/jahumada/testdata_hits/LSST_notebooks/light_curves/{}/lightcurves_LSST_stars.jpeg'.format(field), bbox_inches='tight')
+        #plt.show()
 
         plt.figure(figsize=(10,6))
         mags_visits_list = []
@@ -1703,7 +1699,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         stars_science_flux = stars[stars_science_flux_columns]
         stars_science_flux -= stars_science_flux.median()
         #stars_science_flux = stars_science_flux.reset_index()
-        print(stars_science_flux)
         stars_science_rms_byEpoch = np.array([np.std(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
         stars_science_mean_byEpoch = np.array([np.mean(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
 
@@ -1775,17 +1770,17 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         columns_mag = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
         columns_magErr = ['base_PsfFlux_magErr_{}'.format(v) for v in visits_aux]
-        fig, axs = plt.subplots(int(np.sqrt(nstars))+1,int(np.sqrt(nstars))+1 , figsize=(10, 6), constrained_layout=True)
-        #fig.set_title('Flux measured on coadd template', fontsize=17)
-        for ax, markevery in zip(axs.flat, range(nstars)):
-            ft_star = (np.array(stars['star_{}_fs'.format(markevery+1)])).flatten() #* scaling
-            ft_star_err = np.ndarray.flatten(np.array(stars['star_{}_fserr'.format(markevery+1)])) #* scaling
+        #fig, axs = plt.subplots(int(np.sqrt(nstars))+1,int(np.sqrt(nstars))+1 , figsize=(10, 6), constrained_layout=True)
+        ##fig.set_title('Flux measured on coadd template', fontsize=17)
+        #for ax, markevery in zip(axs.flat, range(nstars)):
+        #    ft_star = (np.array(stars['star_{}_fs'.format(markevery+1)])).flatten() #* scaling
+        #    ft_star_err = np.ndarray.flatten(np.array(stars['star_{}_fserr'.format(markevery+1)])) #* scaling
 
-            ax.set_title(f'star number {markevery+1}')
-            ax.errorbar(dates_aux, ft_star, yerr = ft_star_err, fmt = 'o', ls='-', color=s_m.to_rgba(fluxt_stars[markevery]))
-        # plotting flxs of stars 
-        #plt.title('Flux measured on coadd template', fontsize=17)
-        plt.show()
+        #    ax.set_title(f'star number {markevery+1}')
+        #    ax.errorbar(dates_aux, ft_star, yerr = ft_star_err, fmt = 'o', ls='-', color=s_m.to_rgba(fluxt_stars[markevery]))
+        ## plotting flxs of stars 
+        ##plt.title('Flux measured on coadd template', fontsize=17)
+        #plt.show()
         plt.figure(figsize=(10,10))
         for i in range(nstars):
             f_star = np.array(stars['star_{}_f'.format(i+1)]) #* scaling
