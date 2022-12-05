@@ -1214,13 +1214,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #plt.show()
 
 
-    plt.figure(figsize=(10,6))
+    # calibration factor plots
+    #plt.figure(figsize=(10,6))
     #plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', linestyle='--')
-    plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline', linestyle='--')
-    plt.xlabel('MJD', fontsize=17)
-    plt.ylabel('Calibration mean', fontsize=17)
-    plt.title('LSST calibration mean', fontsize=17)
-    plt.show()
+    #plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline', linestyle='--')
+    #plt.xlabel('MJD', fontsize=17)
+    #plt.ylabel('Calibration mean', fontsize=17)
+    #plt.title('LSST calibration mean', fontsize=17)
+    #plt.show()
 
     # plorrint calib intercept
 
@@ -1235,20 +1236,20 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #plt.show()
 
     # Airmass plot
-    plt.figure(figsize=(10,6))
-    plt.plot(dates_aux, Airmass, 'o', color='magenta', linestyle='--')
-    plt.title('Airmass', fontsize=17)
-    plt.xlabel('MJD', fontsize=17)
-    plt.ylabel('Airmass', fontsize=17)
-    plt.show()
+    #plt.figure(figsize=(10,6))
+    #plt.plot(dates_aux, Airmass, 'o', color='magenta', linestyle='--')
+    #plt.title('Airmass', fontsize=17)
+    #plt.xlabel('MJD', fontsize=17)
+    #plt.ylabel('Airmass', fontsize=17)
+    #plt.show()
 
     # Seeing plot
-    plt.figure(figsize=(10,6))
-    plt.plot(dates_aux, Seeing, 'o', color='magenta', linestyle='--')
-    plt.title('FWHM observation', fontsize=17)
-    plt.xlabel('MJD', fontsize=17)
-    plt.ylabel('FWHM', fontsize=17)
-    plt.show()
+    #plt.figure(figsize=(10,6))
+    #plt.plot(dates_aux, Seeing, 'o', color='magenta', linestyle='--')
+    #plt.title('FWHM observation', fontsize=17)
+    #plt.xlabel('MJD', fontsize=17)
+    #plt.ylabel('FWHM', fontsize=17)
+    #plt.show()
 
     if do_lc_stars == True:
         py = 2048 - 200
