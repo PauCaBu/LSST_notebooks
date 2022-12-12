@@ -229,7 +229,7 @@ def resolve(name):
         raise ValueError("Unknown object '{}'".format(name))
     return (objRa, objDec)
 
-
+####################################### end of PS1 functions #################################
 def mag_stars_calculation(repo, visit, ccdnum, collection_diff):
     """
     Calculates the magnitude of the stars used for photometric calibration and PSF measurement. 
@@ -681,12 +681,12 @@ def MagAtOneCountFlux(repo, visit, ccdnum, collection_diff):
     print('Using {} stars for photometric calibration'.format(nstars))
     return m_calib[0]
 
-def FromMagToCounts(mag, magzero=24.56):
+def FromMagToCounts(mag, magzero=24.56, t=1):
     '''
     Returns flux counts 
     Mag zero from g band of panstarss : https://iopscience.iop.org/article/10.1088/0004-637X/750/2/99
     '''
-    return 10**(-0.4*(mag - magzero))
+    return 10**(-0.4*(mag - magzero))*t
 
 def FluxToMag(flux, fluxerr, magzero=24.3):
     """

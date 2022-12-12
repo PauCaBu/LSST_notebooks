@@ -986,7 +986,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
         psf = diffexp.getPsf() 
-        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm # in pixels! 
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius() #*sigma2fwhm # in pixels! 
         #r_aux=r
 
         psf2 = coadd.getPsf() 
@@ -1093,8 +1093,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], rd_aux, var = np.asarray(diffexp.variance.array, dtype='float')) # fixed aperture 
         flux_Fs, fluxerr_Fs, flag_FS = sep.sum_circle(data, [x_pix], [y_pix], factor*seeing, var = np.asarray(diffexp.variance.array, dtype='float'))
         #flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(diffexp.variance.array, dtype='float'))
-        flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], rs_aux, err = bkg_rms, gain=4)
-        flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix], [y_pix], rs_aux, err = np.asarray(coadd.variance.array, dtype='float'))
+        flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], rs_aux, var = np.asarray(calexp.variance.array, dtype='float'), gain=4)
+        flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix], [y_pix], rs_aux, var = np.asarray(coadd.variance.array, dtype='float'))
         #flux_coadd_an, fluxerr_coadd_an, flag_coadd = sep.sum_circann(data_coadd, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(coadd.variance.array, dtype='float'))
         
 
@@ -1106,10 +1106,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', rs_aux)
             Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=rs_aux, sd=rd_aux, cutout=cutout, field=field, name=title)
-            prof = flux_profile(calexp, ra, dec, 0.5, r_science)
-            profiles['{}'.format(visits_aux[i])] = prof
             #values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}'.format(save_as, sfx))
             #values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}'.format(save_as, sfx))
+            
+            
+        prof = flux_profile(calexp, ra, dec, 0.5, r_science)
+        profiles['{}'.format(visits_aux[i])] = prof
             
        
 
@@ -1289,7 +1291,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         ra_s = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits_aux[0])])
         dec_s = np.array(stars_table['coord_dec_ddegrees_{}'.format(visits_aux[0])])
 
-        ps1_mags = pc.get_mags_from_catalog_ps1(ra_s, dec_s)        
         ps1_info = pc.get_from_catalog_ps1(ra_s, dec_s)
         ps1_info = ps1_info.sort_values('gmag')
         
@@ -1311,11 +1312,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             data_calexp = np.asarray(calexp.image.array, dtype='float')
             #np.asarray(calexp.image.array, dtype='float')           
             psf = diffexp.getPsf()
-            fwhm = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*sigma2fwhm * pixel_to_arcsec 
+            fwhm = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()* pixel_to_arcsec *sigma2fwhm 
 
             flux_stars_and_errors = []
             #factor_star = 2 #2.5
-            star_aperture = factor_star * fwhm #2 # arcsec 
+            star_aperture = factor_star * fwhm/2
             star_aperture/=pixel_to_arcsec # transform it to pixel values 
 
             exp_visit_info = diffexp.getInfo().getVisitInfo()
@@ -1408,7 +1409,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                     
                     print('꒰✩ ’ω`ૢ✩꒱ -------------------- ⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂⁑⁂')
             
-            stars_calc_byme.loc[len(stars.index)] = flux_stars_and_errors
+            stars_calc_byme.loc[len(stars_calc_byme.index)] = flux_stars_and_errors
+        print(stars_calc_byme)
+        
         #field = collection_diff[13:24]
         #here we plot the stars vs panstarss magnitude:
         norm = matplotlib.colors.Normalize(vmin=0,vmax=32)
@@ -1516,7 +1519,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #print(stars_lsst_calib)
         stars_lsst_mean = np.array([np.mean(stars_lsst_calib[i]) for i in columns_mag])
         stars_lsst_std = np.array([np.std(stars_lsst_calib[i]) for i in columns_mag])
-
+        c_m = matplotlib.cm.plasma
+        norm = matplotlib.colors.Normalize(vmin=min(fluxt_stars),vmax=max(fluxt_stars))
+        s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        s_m.set_array([])
+        T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
         for j in range(len(stars_table)):
             #columns = ['base_PsfFlux_mag_{}'.format(v) for v in visits_aux]
             mag_of_star_j = np.array(stars_table.loc[j][columns_mag])
@@ -1675,10 +1682,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         #plt.show()
 
-        norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
+        #norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
         c_m = matplotlib.cm.plasma
 
-        s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        s_m = matplotlib.cm.ScalarMappable(cmap=c_m)
         s_m.set_array([])
         T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
 
@@ -1715,8 +1722,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.show()
         plt.figure(figsize=(10,6))
         for i in range(nstars):
-            fs_star = (np.array(stars['star_{}_fs'.format(i+1)])).flatten() #* scaling
-            fs_star_err = np.ndarray.flatten(np.array(stars['star_{}_fserr'.format(i+1)])) #* scaling
+            fs_star = (np.array(stars_calc_byme['star_{}_fs'.format(i+1)])).flatten() #* scaling
+            fs_star_err = np.ndarray.flatten(np.array(stars_calc_byme['star_{}_fserr'.format(i+1)])) #* scaling
             
             #Dates = np.array(stars['dates'])
             new_dates = dates_aux
@@ -1730,8 +1737,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             s_m.set_array([])
             T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
 
-            if len(j)==0:
-                plt.errorbar(dates_aux, fs_star - np.median(fs_star), yerr= fs_star_err, capsize=4, fmt='s', ls='solid', label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
+            #if len(j)==0:
+            print('fs_star: ', fs_star)
+            plt.errorbar(dates_aux, fs_star - np.median(fs_star), yerr= fs_star_err, capsize=4, fmt='s', ls='solid', label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
+        
         if well_subtracted:
             plt.title('stars LCs in science image from {} and {} with Aperture of {}*FWHM", well subtracted'.format(field, ccd_name[ccd_num], factor_star)) 
         if not well_subtracted:
@@ -1745,8 +1754,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.figure(figsize=(10,6))
         for i in range(nstars):
-            fs_star = (np.array(stars['star_{}_fs'.format(i+1)])).flatten() #* scaling
-            fs_star_err = np.ndarray.flatten(np.array(stars['star_{}_fserr'.format(i+1)])) #* scaling
+            fs_star = (np.array(stars_calc_byme['star_{}_fs'.format(i+1)])).flatten() #* scaling
+            fs_star_err = np.ndarray.flatten(np.array(stars_calc_byme['star_{}_fserr'.format(i+1)])) #* scaling
             
             #Dates = np.array(stars['dates'])
             new_dates = dates_aux
@@ -1760,8 +1769,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             s_m.set_array([])
             T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
 
-            if len(j)==0:
-                plt.hist(fs_star - np.median(fs_star), alpha=0.5, label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
+            #if len(j)==0:
+            plt.hist(fs_star - np.median(fs_star), alpha=0.5, label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
   
         plt.xlabel('MJD', fontsize=15)
         plt.ylabel('offset Flux [nJy] from median', fontsize=15)
@@ -1792,8 +1801,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #plt.show()
         plt.figure(figsize=(10,10))
         for i in range(nstars):
-            f_star = np.array(stars['star_{}_f'.format(i+1)]) #* scaling
-            f_star_err = np.array(stars['star_{}_ferr'.format(i+1)]) #* scaling
+            f_star = np.array(stars_calc_byme['star_{}_f'.format(i+1)]) #* scaling
+            f_star_err = np.array(stars_calc_byme['star_{}_ferr'.format(i+1)]) #* scaling
                   
             Dates = np.array(stars['dates'])
             new_dates = dates_aux
@@ -1817,8 +1826,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.figure(figsize=(10,6))
 
         for i in range(nstars):
-            f_star = np.array(stars['star_{}_f'.format(i+1)]) #* scaling
-            f_star_err = np.array(stars['star_{}_ferr'.format(i+1)]) #* scaling
+            f_star = np.array(stars_calc_byme['star_{}_f'.format(i+1)]) #* scaling
+            f_star_err = np.array(stars_calc_byme['star_{}_ferr'.format(i+1)]) #* scaling
             
             #Dates = np.array(stars['dates'])
             j, = np.where(saturated_stars==i+1)
@@ -1831,8 +1840,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             s_m.set_array([])
             T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
 
-            if len(j)==0:
-                plt.hist(f_star - np.median(f_star), alpha=0.5, label = 'star {} diff'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
+            #if len(j)==0:
+            plt.hist(f_star - np.median(f_star), alpha=0.5, label = 'star {} diff'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
   
         #plt.xlabel('MJD', fontsize=15)
         plt.xlabel('offset Flux [nJy] from median', fontsize=15)
@@ -2077,7 +2086,7 @@ def all_ccds(repo, field, collection_calexp, collection_diff, collection_coadd, 
     #    source_of_interest = Dict[key]
     #    if type(source_of_interest) == type(None):
     #        continue
-    #    plt.errorbar(source_of_interest.dates, source_of_interest.Mg - source_of_interest.Mg_coadd, yerr = np.sqrt(np.array(source_of_interest.Mg_err)**2 + np.array(source_of_interest.Mg_err_coadd)**2) , capsize=4, fmt='s', label ='AL Cáceres-Burgos in prep {}'.format(key), ls ='dotted',  color = s_m.to_rgba(T[i]))
+    #    plt.errorbar(source_of_interest.fdates, source_of_interest.Mg - source_of_interest.Mg_coadd, yerr = np.sqrt(np.array(source_of_interest.Mg_err)**2 + np.array(source_of_interest.Mg_err_coadd)**2) , capsize=4, fmt='s', label ='AL Cáceres-Burgos in prep {}'.format(key), ls ='dotted',  color = s_m.to_rgba(T[i]))
     #    plt.xlabel('MJD', fontsize=15)
     #    plt.ylabel('offset Mag AB difference', fontsize=15)
     #    plt.title('Magnitude AB - Magnitude AB coadd', fontsize=15)
