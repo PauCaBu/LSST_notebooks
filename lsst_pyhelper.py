@@ -76,6 +76,44 @@ def get_all_exposures(repo, obs_type, instrument='DECam'):
 
     return data
 
+def Extract_information(repo, collection, visits, ccd_num, expotype='calexp', instrument='DECam', save=False, save_as =None):
+    """
+    extracts information of airmass, psf size (in arcsec), scaling calib parameter and its error
+    onto a dataframe 
+
+    Input
+    -----
+    repo
+    collection 
+    visits
+    ccd_num
+    expotype
+    instrument
+
+    output
+    ------
+    data
+    
+    """
+
+    butler = Butler(repo)
+    data=pd.DataFrame(columns =['airmass','psf', 'calib', 'calib_err'])
+    for i in range(len(visits)):
+        expo = butler.get(expotype, visit= visits[i], detector= ccd_num, instrument=instrument, collections=collection)
+        psf = expo.getPsf() 
+        arcsec_to_pixel = 0.2626 #arcsec/pixel
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*arcsec_to_pixel
+        airmass = float(expo.getInfo().getVisitInfo().boresightAirmass)
+        ptcb_expo = expo.getPhotoCalib()
+        calib = ptcb_expo.getCalibrationMean()
+        calib_err = ptcb_expo.getCalibrationErr()
+        row = [airmass, seeing, calib, calib_err]
+        data.loc[len(data.index)] = row
+    if save:
+        aux = collection.split('/')
+        data.to_csv('info_{}.txt'.format(aux[-1]))
+    return data
+
 def radec_to_pixel(ra,dec,wcs):
     """
 
@@ -359,6 +397,8 @@ def Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, de
         
     return
 
+
+
 def Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra, dec, visits, ccd_num, cutout=40, s=20):
     """
     Plots the calibrated and difference-imaged exposure cropped to the location of ra,dec
@@ -371,9 +411,9 @@ def Calib_Diff_and_Coadd_plot_cropped(repo, collection_diff, ra, dec, visits, cc
     ra : [float] right ascention coordinate in decimal degrees
     dec : [float] declination coordinate in decimal degrees
     visits : [ndarray] list of visits
-    ccd_num : [int]
-    cutout : [int]
-    s : [int] circular display 
+    ccd_num : [int] detector number 
+    cutout : [int] half size in pixels of square cutout
+    s : [int] area of circular display 
     -----
     Output
     -----
@@ -468,10 +508,12 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
     ra : [float] right ascention coordinate in decimal degrees
     dec : [float] declination coordinate in decimal degrees
     visits : [ndarray] list of visits
-    ccd_num : [int]
+    ccd_num : [int] detector number 
     cutout : [int]
     s : [float] pixel radii for circular display in science and template image
     sd : [float] pixel radii for circular display in difference image
+    field : [string] name of the field
+    name : [string] name of the source (optional for saving purposes)
     -----
     Output
     -----
