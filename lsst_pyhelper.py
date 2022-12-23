@@ -526,7 +526,7 @@ def Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, vi
 
         fig.add_subplot(1,3,2)
 
-        plt.imshow(diffexp_cutout_arr)
+        plt.imshow(diffexp_cutout_arr, vmin=-30, vmax=30)
         plt.colorbar()
         plt.contour(diffexp_cutout_arr, levels=np.logspace(1.3, 2.2, 10), colors ='white', alpha=0.5)
 
@@ -842,7 +842,7 @@ def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
     return dates_aux, visits_aux
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r_science, r_diff, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 2, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, config='SIBLING', verbose=False, tp='after_ID'):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r_science, r_diff, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 6, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, config='SIBLING', verbose=False, tp='after_ID'):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -1217,13 +1217,13 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
 
     # calibration factor plots
-    #plt.figure(figsize=(10,6))
+    plt.figure(figsize=(10,6))
     #plt.plot(dates_aux, calib_relative, '*', color='black', label='My calibration', linestyle='--')
-    #plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline', linestyle='--')
-    #plt.xlabel('MJD', fontsize=17)
-    #plt.ylabel('Calibration mean', fontsize=17)
-    #plt.title('LSST calibration mean', fontsize=17)
-    #plt.show()
+    plt.errorbar(dates_aux, calib_lsst, yerr=calib_lsst_err, fmt='o', color='blue', label='LSST pipeline', linestyle='--')
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('Calibration mean', fontsize=17)
+    plt.title('LSST calibration mean', fontsize=17)
+    plt.show()
 
     # plorrint calib intercept
 
@@ -1238,20 +1238,20 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #plt.show()
 
     # Airmass plot
-    #plt.figure(figsize=(10,6))
-    #plt.plot(dates_aux, Airmass, 'o', color='magenta', linestyle='--')
-    #plt.title('Airmass', fontsize=17)
-    #plt.xlabel('MJD', fontsize=17)
-    #plt.ylabel('Airmass', fontsize=17)
-    #plt.show()
+    plt.figure(figsize=(10,6))
+    plt.plot(dates_aux, Airmass, 'o', color='magenta', linestyle='--')
+    plt.title('Airmass', fontsize=17)
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('Airmass', fontsize=17)
+    plt.show()
 
     # Seeing plot
-    #plt.figure(figsize=(10,6))
-    #plt.plot(dates_aux, Seeing, 'o', color='magenta', linestyle='--')
-    #plt.title('FWHM observation', fontsize=17)
-    #plt.xlabel('MJD', fontsize=17)
-    #plt.ylabel('FWHM', fontsize=17)
-    #plt.show()
+    plt.figure(figsize=(10,6))
+    plt.plot(dates_aux, Seeing, 'o', color='magenta', linestyle='--')
+    plt.title('seeing sigma observation', fontsize=17)
+    plt.xlabel('MJD', fontsize=17)
+    plt.ylabel('FWHM', fontsize=17)
+    plt.show()
 
     if do_lc_stars == True:
         py = 2048 - 200
@@ -1520,7 +1520,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         stars_lsst_mean = np.array([np.mean(stars_lsst_calib[i]) for i in columns_mag])
         stars_lsst_std = np.array([np.std(stars_lsst_calib[i]) for i in columns_mag])
         c_m = matplotlib.cm.plasma
-        norm = matplotlib.colors.Normalize(vmin=min(fluxt_stars),vmax=max(fluxt_stars))
+        norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
         s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
         s_m.set_array([])
         T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
@@ -1639,7 +1639,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             mags_visits = np.mean(mag_stars)
             #mags_visits_p16.append(np.percentile(mag_stars,))
             mags_visits_list.append(mags_visits)
-            mags_ps1_mean = np.mean(ps1_mags.ps1_mag)
+            mags_ps1_mean = np.mean(ps1_info.gmag)
         plt.plot(dates_aux, np.array(mags_visits_list) - mags_ps1_mean, '*', color='magenta', markersize=10, alpha=0.5, linestyle='--')
         plt.xlabel('MJD', fontsize=17)
         plt.ylabel('mean mag LSST - mean mag PS1', fontsize=17)
@@ -1738,11 +1738,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
 
             #if len(j)==0:
-            print('fs_star: ', fs_star)
+            #print('fs_star: ', fs_star)
             plt.errorbar(dates_aux, fs_star - np.median(fs_star), yerr= fs_star_err, capsize=4, fmt='s', ls='solid', label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
         
         if well_subtracted:
-            plt.title('stars LCs in science image from {} and {} with Aperture of {}*FWHM", well subtracted'.format(field, ccd_name[ccd_num], factor_star)) 
+            plt.title('stars LCs in science image from {} and {} with Aperture of {}*FWHM/2", well subtracted'.format(field, ccd_name[ccd_num], factor_star)) 
         if not well_subtracted:
             plt.title('stars LCs in science image from {} and {} with Aperture {}*FWHM'.format(field, ccd_name[ccd_num], factor_star)) 
 
@@ -1971,7 +1971,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     # This line below plots the stamps of the source as a single figure for all epochs available!
     if save_stamps:
-        Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, list(source_of_interest.visit), ccd_num, cutout=cutout, s=rs_aux, save_stamps=save_stamps, save_as=save_as+ '_stamps')
+        Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, list(source_of_interest.visit), ccd_num, cutout=cutout, s=rd_aux, save_stamps=save_stamps, save_as=save_as+ '_stamps')
     
         plt.show()
     
