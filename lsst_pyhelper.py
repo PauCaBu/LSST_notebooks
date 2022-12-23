@@ -76,7 +76,7 @@ def get_all_exposures(repo, obs_type, instrument='DECam'):
 
     return data
 
-def Extract_information(repo, collection, visits, ccd_num, expotype='calexp', instrument='DECam', save=False, save_as =None):
+def Extract_information(repo, collection, visits, ccd_num, ra, dec, expotype='calexp', instrument='DECam', save=False, save_as =None):
     """
     extracts information of airmass, psf size (in arcsec), scaling calib parameter and its error
     onto a dataframe 
@@ -97,17 +97,27 @@ def Extract_information(repo, collection, visits, ccd_num, expotype='calexp', in
     """
 
     butler = Butler(repo)
-    data=pd.DataFrame(columns =['airmass','psf', 'calib', 'calib_err'])
+    data=pd.DataFrame(columns =['airmass','psf', 'calib', 'calib_err', 'x_pix', 'y_pix', 'mjd', 'visit'])
     for i in range(len(visits)):
         expo = butler.get(expotype, visit= visits[i], detector= ccd_num, instrument=instrument, collections=collection)
         psf = expo.getPsf() 
         arcsec_to_pixel = 0.2626 #arcsec/pixel
-        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*arcsec_to_pixel
+        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))  
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()*arcsec_to_pixel*sigma2fwhm 
         airmass = float(expo.getInfo().getVisitInfo().boresightAirmass)
         ptcb_expo = expo.getPhotoCalib()
         calib = ptcb_expo.getCalibrationMean()
         calib_err = ptcb_expo.getCalibrationErr()
-        row = [airmass, seeing, calib, calib_err]
+        wcs= expo.getWcs()
+        obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        exp_visit_info = expo.getInfo().getVisitInfo()
+        
+        visit_date_python = exp_visit_info.getDate().toPython()
+        visit_date_astropy = Time(visit_date_python)        
+        mjd= visit_date_astropy.mjd
+        row = [airmass, seeing, calib, calib_err, x_pix, y_pix, mjd, visits[i]]
+
         data.loc[len(data.index)] = row
     if save:
         aux = collection.split('/')
