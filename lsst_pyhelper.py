@@ -2930,7 +2930,7 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
             
             param = Jorge_LC['aperture_{}_0'.format(sfx)]
             param_err = Jorge_LC['aperture_{}_err_0'.format(sfx)]
-            median_jorge=np.median(param)
+            #median_jorge=np.median(param)
             #if sfx == 'flx':
             #    fluxes_and_err = pc.ABMagToFlux(param, param_err)
             #    param = fluxes_and_err[0]
@@ -2940,8 +2940,8 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
             #
             #std = np.norm(Jorge_LC.aperture_flx_0)
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_0 - mean, yerr=Jorge_LC.aperture_flx_err_0,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
-            x = Jorge_LC.mjd- min(Jorge_LC.mjd)
-            y = param - median_jorge
+            x = Jorge_LC.mjd - min(Jorge_LC.mjd)
+            y = param #- median_jorge
             yerr = param_err
             return x, y, yerr
         if factor==0.75:
