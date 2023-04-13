@@ -41,11 +41,12 @@ bblue='#0827F5'
 dark_purple = '#2B018E'
 lilac='#a37ed4'
 
+main_root = '/home/pcaceres'
 detector_nomenclature= {'S29':1, 'S30':2, 'S31':3, 'S28':7, 'S27':6, 'S26':5, 'S25':4, 'S24':12, 'S23':11, 'S22':10, 'S21':9, 'S20':8, 'S19':18, 'S18':17, 'S17':16, 'S16':15, 'S15':14, 'S14':13, 'S13':24, 'S12':23, 'S11':22, 'S10':21, 'S9':20,'S8':19, 'S7':31, 'S6':30, 'S5':29, 'S4':28, 'S3':27, 'S2':26, 'S1':25, 'N29':60, 'N30':61, 'N31':62, 'N28':59, 'N27':58, 'N26':57, 'N25':56, 'N24':55, 'N23':54, 'N22':53, 'N21':52, 'N20':51, 'N19':50, 'N18':49, 'N17':48, 'N16':47, 'N15':46, 'N14':45, 'N13':44, 'N12':43, 'N11':42, 'N10':41, 'N9':40,'N8':39, 'N7':38, 'N6':37, 'N5':36, 'N4':35, 'N3':34, 'N2':33, 'N1':32 }
 ccd_name = dict(zip(detector_nomenclature.values(), detector_nomenclature.keys()))
-sibling_allcand = pd.read_csv('/home/jahumada/testdata_hits/SIBLING_allcand.csv', index_col=0)
-Blind15A_26_magzero_outputs = pd.read_csv('/home/jahumada/testdata_hits/LSST_notebooks/output_magzeros.csv')
-main_path = '/home/jahumada/testdata_hits/LSST_notebooks/'
+sibling_allcand = pd.read_csv('{}/HiTS_data/SIBLING_allcand.csv'.format(main_root), index_col=0)
+Blind15A_26_magzero_outputs = pd.read_csv('{}/LSST_notebooks/output_magzeros.csv'.format(main_root))
+main_path = '{}/LSST_notebooks/'.format(main_root)
 
 
 def get_all_exposures(repo, obs_type, instrument='DECam'):
@@ -97,7 +98,7 @@ def Extract_information(repo, collection, visits, ccd_num, ra, dec, expotype='ca
     """
 
     butler = Butler(repo)
-    data=pd.DataFrame(columns =['airmass','psf', 'calib', 'calib_err', 'x_pix', 'y_pix', 'mjd', 'visit'])
+    data=pd.DataFrame(columns =['airmass','psf', 'calib', 'calib_err', 'x_pix', 'y_pix', 'mjd', 'visit', 'zp', 'expTime'])
     for i in range(len(visits)):
         expo = butler.get(expotype, visit= visits[i], detector= ccd_num, instrument=instrument, collections=collection)
         psf = expo.getPsf() 
@@ -108,6 +109,7 @@ def Extract_information(repo, collection, visits, ccd_num, ra, dec, expotype='ca
         ptcb_expo = expo.getPhotoCalib()
         calib = ptcb_expo.getCalibrationMean()
         calib_err = ptcb_expo.getCalibrationErr()
+        zp = ptcb_expo.instFluxToMagnitude(1.0)
         wcs= expo.getWcs()
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
         x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
@@ -116,7 +118,10 @@ def Extract_information(repo, collection, visits, ccd_num, ra, dec, expotype='ca
         visit_date_python = exp_visit_info.getDate().toPython()
         visit_date_astropy = Time(visit_date_python)        
         mjd= visit_date_astropy.mjd
-        row = [airmass, seeing, calib, calib_err, x_pix, y_pix, mjd, visits[i]]
+        expTime = expo.getInfo().getVisitInfo().exposureTime 
+      
+
+        row = [airmass, seeing, calib, calib_err, x_pix, y_pix, mjd, visits[i], zp, expTime]
 
         data.loc[len(data.index)] = row
     if save:
@@ -1804,31 +1809,29 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         plt.show()
 
-        plt.figure(figsize=(10,6))
-        for i in range(nstars):
-            fs_star = (np.array(stars_calc_byme['star_{}_fs'.format(i+1)])).flatten() #* scaling
-            fs_star_err = np.ndarray.flatten(np.array(stars_calc_byme['star_{}_fserr'.format(i+1)])) #* scaling
-            
-            #Dates = np.array(stars['dates'])
-            new_dates = dates_aux
-            j, = np.where(saturated_stars==i+1)
-            
-            norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
-            c_m = matplotlib.cm.plasma
+        #plt.figure(figsize=(10,6))
+        #for i in range(nstars):
+        #    fs_star = (np.array(stars_calc_byme['star_{}_fs'.format(i+1)])).flatten() #* scaling
+        #    fs_star_err = np.ndarray.flatten(np.array(stars_calc_byme['star_{}_fserr'.format(i+1)])) #* scaling
+        #    
+        #    #Dates = np.array(stars['dates'])
+        #    new_dates = dates_aux
+        #    j, = np.where(saturated_stars==i+1)
+        #    
+        #    norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
+        #    c_m = matplotlib.cm.plasma
 
-            # create a ScalarMappable and initialize a data structure
-            s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
-            s_m.set_array([])
-            T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
+        #    # create a ScalarMappable and initialize a data structure
+        #    s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        #    s_m.set_array([])
+        #    T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
+        #    #if len(j)==0:
+        #    plt.hist(fs_star - np.median(fs_star), alpha=0.5, label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))  
+        #plt.xlabel('MJD', fontsize=15)
+        #plt.ylabel('offset Flux [nJy] from median', fontsize=15)
+        #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-            #if len(j)==0:
-            plt.hist(fs_star - np.median(fs_star), alpha=0.5, label = 'star {} science'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
-  
-        plt.xlabel('MJD', fontsize=15)
-        plt.ylabel('offset Flux [nJy] from median', fontsize=15)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-
-        plt.show()
+        #plt.show()
 
 
         norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
@@ -1875,31 +1878,31 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         plt.show()
 
-        plt.figure(figsize=(10,6))
+        #plt.figure(figsize=(10,6))
 
-        for i in range(nstars):
-            f_star = np.array(stars_calc_byme['star_{}_f'.format(i+1)]) #* scaling
-            f_star_err = np.array(stars_calc_byme['star_{}_ferr'.format(i+1)]) #* scaling
-            
-            #Dates = np.array(stars['dates'])
-            j, = np.where(saturated_stars==i+1)
-            
-            norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
-            c_m = matplotlib.cm.plasma
+        #for i in range(nstars):
+        #    f_star = np.array(stars_calc_byme['star_{}_f'.format(i+1)]) #* scaling
+        #    f_star_err = np.array(stars_calc_byme['star_{}_ferr'.format(i+1)]) #* scaling
+        #    
+        #    #Dates = np.array(stars['dates'])
+        #    j, = np.where(saturated_stars==i+1)
+        #    
+        #    norm = matplotlib.colors.Normalize(vmin=min(fluxs_stars),vmax=max(fluxs_stars))
+        #    c_m = matplotlib.cm.plasma
 
-            # create a ScalarMappable and initialize a data structure
-            s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
-            s_m.set_array([])
-            T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
+        #    # create a ScalarMappable and initialize a data structure
+        #    s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
+        #    s_m.set_array([])
+        #    T = np.linspace(min(fluxs_stars),max(fluxs_stars),nstars)
 
-            #if len(j)==0:
-            plt.hist(f_star - np.median(f_star), alpha=0.5, label = 'star {} diff'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
+        #    #if len(j)==0:
+        #    plt.hist(f_star - np.median(f_star), alpha=0.5, label = 'star {} diff'.format(i+1), color = s_m.to_rgba(fluxs_stars[i]))
   
-        #plt.xlabel('MJD', fontsize=15)
-        plt.xlabel('offset Flux [nJy] from median', fontsize=15)
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-
-        plt.show()
+        ##plt.xlabel('MJD', fontsize=15)
+        #plt.xlabel('offset Flux [nJy] from median', fontsize=15)
+        #plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+#
+        #plt.show()
 
 
         
@@ -1994,7 +1997,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     if SIBLING!=None and sfx == 'flx':
         x, y, yerr = compare_to(SIBLING, sfx='mag', factor=0.75)
         f, ferr = pc.ABMagToFlux(y, yerr)
-        plt.errorbar(x-min(x),f*10 - np.median(f*10), yerr=ferr*10,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
+        plt.errorbar(x-min(x),f*9 - np.median(f*9), yerr=ferr*9,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
     plt.legend()
 
     #plt.title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
@@ -2341,9 +2344,9 @@ def Find_stars(ra, dec, width, height, n, seed=[True, 200]):
 
     return table
 
-def Select_table_from_one_calib_exposure(repo, visit, ccdnum, collection_calexp):
+def Select_table_from_one_calib_exposure(repo, visit, ccdnum, collection_calexp, stars=True):
     """
-    Selects stars from calibrated exposures 
+    Selects stars or all detected sources from calibrated exposures 
 
     """
     
@@ -2356,8 +2359,12 @@ def Select_table_from_one_calib_exposure(repo, visit, ccdnum, collection_calexp)
     src_pandas = src.asAstropy().to_pandas()
     src_pandas['coord_ra_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_ra'])]
     src_pandas['coord_dec_trunc'] = [Truncate(f, 5) for f in np.array(src['coord_dec'])]
-    mask = (src_pandas['calib_photometry_used'] == True) & (src_pandas['base_PsfFlux_instFlux']/src_pandas['base_PsfFlux_instFluxErr'] > 50)
-    stars_photometry = src_pandas[mask]
+    if stars:
+        mask = (src_pandas['calib_photometry_used'] == True) & (src_pandas['base_PsfFlux_instFlux']/src_pandas['base_PsfFlux_instFluxErr'] > 50)
+        stars_photometry = src_pandas[mask]
+    else:
+        stars_photometry = src_pandas
+        
     sources_masked = stars_photometry.dropna(subset=['coord_ra', 'coord_dec'])
     phot_table = Table.from_pandas(sources_masked)
     phot_table['coord_ra_ddegrees'] = (phot_table['coord_ra'] * u.rad).to(u.degree)
@@ -2524,15 +2531,32 @@ def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted
     return big_table
 
 
-def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted =True, tp='after_ID'):
+def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted =True, tp='after_ID', save=False):
     """
     returns the common stars used for calibration
+
+    input:
+    -----
+    repo
+    visits
+    ccdnum
+    collection_diff
+    well_subtracted
+    tp
+    save
+
+    output:
+    ------
+    phot_table [pandas dataFrame]:
     """
     big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,well_subtracted = well_subtracted, tp=tp)
     phot_table = big_table.dropna()
     phot_table = phot_table.drop_duplicates('coord_ra_trunc')
     phot_table = phot_table.reset_index()
     #phot_table = phot_table.drop('index')
+    if save:
+        field = collection_diff.split('/')[-1]
+        phot_table.to_csv('stars_from_{}.txt'.format(field))
     return phot_table
 
 def Find_stars_from_LSST_to_PS1(repo, visit, ccdnum, collection_diff, n, well_subtracted=True, verbose=False):
@@ -2975,7 +2999,7 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
             #    param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
-            y = param - median_jorge
+            y = param #- median_jorge
             yerr = param_err
             return x, y, yerr
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_2 - mean, yerr=Jorge_LC.aperture_flx_err_2,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
@@ -2991,7 +3015,7 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
             #    param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
-            y = param - median_jorge
+            y = param #- median_jorge
             yerr = param_err
             return x, y, yerr
             #plt.errorbar(Jorge_LC.mjd - min(Jorge_LC.mjd), Jorge_LC.aperture_flx_3 - mean, yerr=Jorge_LC.aperture_flx_err_3,  capsize=4, fmt='o', ecolor='m', color='m', label='Jorge & F.Forster LC')
@@ -3010,7 +3034,7 @@ def compare_to(directory, sfx, factor, beforeDate=57072):
             #    param_err = fluxes_and_err[1]
 
             x = Jorge_LC.mjd- min(Jorge_LC.mjd)
-            y = param - median_jorge
+            y = param #- median_jorge
             yerr = param_err
             return x, y, yerr
     
