@@ -899,7 +899,7 @@ def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
     return dates_aux, visits_aux
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r_science, r_diff, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 6, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, config='SIBLING', verbose=False, tp='after_ID'):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r_science, r_diff, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, factor_star = 6, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, config='SIBLING', verbose=False, tp='after_ID', area=None, thresh=None):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -981,6 +981,24 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     Fluxes_njsky = []
     Fluxeserr_njsky = []
 
+
+    Fluxes0p5_njsky = []
+    Fluxeserr0p5_njsky = []
+
+    Fluxes0p75_njsky = []
+    Fluxeserr0p75_njsky = []
+
+    Fluxes1_njsky = []
+    Fluxeserr1_njsky = []
+
+    Fluxes1p25_njsky = []
+    Fluxeserr1p25_njsky = []
+
+    Fluxes1p5_njsky = []
+    Fluxeserr1p5_njsky = []
+
+
+
     FluxesFs_njsky = []
     FluxeserrFs_njsky = []
 
@@ -1057,7 +1075,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         Seeing.append(seeing)
 
-        if correct_coord and i==0:
+        if correct_coord: #and i==0:
 
             print('before centroid correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
 
@@ -1073,9 +1091,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             objects = sep.extract(sub_data, 100, minarea=10)
             
             obj = Select_largest_flux(sub_data, objects)
-            ox = objects[:]['x']
-            xc = float(obj['x'][0]) # x coordinate pixel
-            yc = float(obj['y'][0]) # y coordinate pixel
+            if area == None:
+                area = rd_aux**2 * np.pi 
+            if thresh == None:
+                thresh = area * 50
+
+            xc, yc = center_brightest_zone(data, thresh, area)
+            #xc = float(obj['x'][0]) # x coordinate pixel
+            #yc = float(obj['y'][0]) # y coordinate pixel
             
             x_pix = xc + int(x_pix)-box 
             y_pix = yc + int(y_pix)-box
@@ -1149,6 +1172,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], rd_aux, var = np.asarray(diffexp.variance.array, dtype='float')) # fixed aperture 
         flux_Fs, fluxerr_Fs, flag_FS = sep.sum_circle(data, [x_pix], [y_pix], factor*seeing, var = np.asarray(diffexp.variance.array, dtype='float'))
+        
+        # aperture photometry of 5 fixed radii (like Jorges)
+        flux_Fs0p5, fluxerr_Fs0p5, flag_FS0p5 = sep.sum_circle(data, [x_pix], [y_pix], 0.5*rd_aux, var = np.asarray(diffexp.variance.array, dtype='float'))
+        flux_Fs0p75, fluxerr_Fs0p75, flag_FS0p75 = sep.sum_circle(data, [x_pix], [y_pix], 0.75*rd_aux, var = np.asarray(diffexp.variance.array, dtype='float'))
+        flux_Fs1, fluxerr_Fs1, flag_FS1 = sep.sum_circle(data, [x_pix], [y_pix], 1*rd_aux, var = np.asarray(diffexp.variance.array, dtype='float'))
+        flux_Fs1p25, fluxerr_Fs1p25, flag_FS1p25 = sep.sum_circle(data, [x_pix], [y_pix], 1.25*rd_aux, var = np.asarray(diffexp.variance.array, dtype='float'))
+        flux_Fs1p5, fluxerr_Fs1p5, flag_FS1p5 = sep.sum_circle(data, [x_pix], [y_pix], 1.5*rd_aux, var = np.asarray(diffexp.variance.array, dtype='float'))
+        
+        
         #flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(diffexp.variance.array, dtype='float'))
         flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], rs_aux, var = np.asarray(calexp.variance.array, dtype='float'), gain=4)
         flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix], [y_pix], rs_aux, var = np.asarray(coadd.variance.array, dtype='float'))
@@ -1190,6 +1222,34 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         fluxFs_jsky = fluxFs_physical.value
         fluxerrFs_jsky = fluxFs_physical.error#flux_jsky * np.sqrt((calib_image/calib_image_err)**2 + (flux[0]/fluxerr[0])**2)
+
+        ## njsky conversion for the 5 fixed apertures:
+
+        fluxFs0p5_physical = photocalib.instFluxToNanojansky(flux_Fs0p5[0], fluxerr_Fs0p5[0], obj_pos_2d)        
+        fluxFs0p5_jsky = fluxFs0p5_physical.value
+        fluxerrFs0p5_jsky = fluxFs0p5_physical.error
+
+        fluxFs0p75_physical = photocalib.instFluxToNanojansky(flux_Fs0p75[0], fluxerr_Fs0p75[0], obj_pos_2d)        
+        fluxFs0p75_jsky = fluxFs0p75_physical.value
+        fluxerrFs0p75_jsky = fluxFs0p75_physical.error
+
+        fluxFs1_physical = photocalib.instFluxToNanojansky(flux_Fs1[0], fluxerr_Fs[10], obj_pos_2d)        
+        fluxFs1_jsky = fluxFs1_physical.value
+        fluxerrFs1_jsky = fluxFs1_physical.error
+
+        fluxFs1p25_physical = photocalib.instFluxToNanojansky(flux_Fs1p25[0], fluxerr_Fs1p25[0], obj_pos_2d)        
+        fluxFs1p25_jsky = fluxFs1p25_physical.value
+        fluxerrFs1p25_jsky = fluxFs1p25_physical.error
+
+        fluxFs1p5_physical = photocalib.instFluxToNanojansky(flux_Fs1p5[0], fluxerr_Fs1p5[0], obj_pos_2d)        
+        fluxFs1p5_jsky = fluxFs1p5_physical.value
+        fluxerrFs1p5_jsky = fluxFs1p5_physical.error
+
+
+
+        #####
+
+
 
         flux_physical_coadd = photocalib_coadd.instFluxToNanojansky(flux_coadd[0], fluxerr_coadd[0], obj_pos_2d)
 
@@ -1237,6 +1297,26 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
         FluxesFs_njsky.append(fluxFs_jsky)
         FluxeserrFs_njsky.append(fluxerrFs_jsky)
+
+        ##### add different aperture sizes to their corresponding list:
+
+        Fluxes0p5_njsky.append(fluxFs0p5_jsky)
+        Fluxeserr0p5_njsky.append(fluxerrFs0p5_jsky)
+
+        Fluxes0p75_njsky.append(fluxFs0p75_jsky)
+        Fluxeserr0p75_njsky.append(fluxerrFs0p75_jsky)
+
+        Fluxes1_njsky.append(fluxFs1_jsky)
+        Fluxeserr1_njsky.append(fluxerrFs1_jsky)
+
+        Fluxes1p25_njsky.append(fluxFs1p25_jsky)
+        Fluxeserr1p25_njsky.append(fluxerrFs1p25_jsky)
+
+        Fluxes1p5_njsky.append(fluxFs1p5_jsky)
+        Fluxeserr1p5_njsky.append(fluxerrFs1p5_jsky)
+
+        #####################################
+
 
         Fluxes_njsky_coadd.append(flux_jsky_coadd)
         Fluxeserr_njsky_coadd.append(fluxerr_jsky_coadd)
@@ -1950,6 +2030,22 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     source_of_interest['fluxerr_nJy'] = np.array(Fluxeserr_njsky) # difference flux error with fixed aperture
     source_of_interest['fluxFs_nJy'] = np.array(FluxesFs_njsky) # difference flux with aperture as a factor 2 of seeing
     source_of_interest['fluxerrFs_nJy'] = np.array(FluxeserrFs_njsky) # difference flux error with a factor 2 of seeing
+    
+    ### adding the 5 differerent apertures:
+
+    source_of_interest['flux0p5_nJy'] = np.array(Fluxes0p5_njsky) # difference flux with fixed aperture * factor 0.5 
+    source_of_interest['fluxerr0p5_nJy'] = np.array(Fluxeserr0p5_njsky) # difference flux error with fixed aperture * factor 0.5 
+    source_of_interest['flux0p75_nJy'] = np.array(Fluxes0p75_njsky) # difference flux with fixed aperture * factor 0.75 
+    source_of_interest['fluxerr0p75_nJy'] = np.array(Fluxeserr0p75_njsky) # difference flux error with fixed aperture * factor 0.75 
+    source_of_interest['flux1_nJy'] = np.array(Fluxes1_njsky) # difference flux with fixed aperture * factor 1
+    source_of_interest['fluxerr1_nJy'] = np.array(Fluxeserr1_njsky) # difference flux error with fixed aperture * factor 1
+    source_of_interest['flux1p25_nJy'] = np.array(Fluxes1p25_njsky) # difference flux with fixed aperture * factor 1.25 
+    source_of_interest['fluxerr1p25_nJy'] = np.array(Fluxeserr1p25_njsky) # difference flux erro with fixed aperture * factor 1.25 
+    source_of_interest['flux1p5_nJy'] = np.array(Fluxes1p5_njsky) # difference flux with fixed aperture * factor 1.5 
+    source_of_interest['fluxerr1p5_nJy'] = np.array(Fluxeserr1p5_njsky) # difference flux error with fixed aperture * factor 1.5 
+    
+    ######################################
+    
     source_of_interest['flux_nJy_coadd'] = np.array(Fluxes_njsky_coadd) # template flux 
     source_of_interest['fluxerr_nJy_coadd'] = np.array(Fluxeserr_njsky_coadd) # template flux error
     source_of_interest['flux_nJy_cal'] = np.array(Fluxes_cal) # science flux
@@ -1987,6 +2083,16 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     plt.figure(figsize=(10,6))
     plt.title('Difference Light curves', fontsize=17)
     plt.errorbar(source_of_interest.dates, source_of_interest.flux_nJy, yerr = np.sqrt(source_of_interest.fluxerr_nJy**2 + stars_diff_sigma_byEpoch**2), capsize=4, fmt='s', label ='Fixed aperture of {}"'.format(r_diff), color='magenta', ls ='dotted')
+    
+    ## plots of the 5 different apertures
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux0p5_nJy, yerr = source_of_interest.fluxerr0p5_nJy, capsize=4, fmt='s', label ='Fixed aperture of {}" * 0.5'.format(r_diff), color='black', ls ='dotted')
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux0p75_nJy, yerr = source_of_interest.fluxerr0p75_nJy, capsize=4, fmt='s', label ='Fixed aperture of {}" * 0.75'.format(r_diff), color='black', ls ='dotted', alpha=0.8)
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux1_nJy, yerr = source_of_interest.fluxerr1_nJy, capsize=4, fmt='s', label ='Fixed aperture of {}" * 1'.format(r_diff), color='black', ls ='dotted', alpha=0.6)
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux1p25_nJy, yerr = source_of_interest.fluxerr1p25_nJy, capsize=4, fmt='s', label ='Fixed aperture of {}" * 1.25'.format(r_diff), color='black', ls ='dotted', alpha=0.4)
+    plt.errorbar(source_of_interest.dates, source_of_interest.flux1p5_nJy, yerr = source_of_interest.fluxerr1p5_nJy, capsize=4, fmt='s', label ='Fixed aperture of {}" *1.5'.format(r_diff), color='black', ls ='dotted', alpha=0.2)
+    
+    ######################################
+    
     plt.errorbar(source_of_interest.dates, source_of_interest.fluxFs_nJy, yerr = np.sqrt(source_of_interest.fluxerrFs_nJy**2 + stars_diff_sigma_byEpoch**2), capsize=4, fmt='s', label ='Aperture {}*FWHM'.format(factor), color='blue', ls ='dotted')
     plt.fill_between(source_of_interest.dates, stars_diff_mean_byEpoch - stars_diff_sigma_byEpoch, stars_diff_mean_byEpoch + stars_diff_sigma_byEpoch, alpha=0.3, label = 'stars 1-sigma dev')
     #plt.fill_between(source_of_interest.dates, stars_lsst_mean- stars_lsst_std, stars_lsst_mean + stars_lsst_std, alpha=0.5, label = 'stars 1-sigma dev', color= lilac)    
@@ -1997,7 +2103,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     if SIBLING!=None and sfx == 'flx':
         x, y, yerr = compare_to(SIBLING, sfx='mag', factor=0.75)
         f, ferr = pc.ABMagToFlux(y, yerr)
-        plt.errorbar(x-min(x),f*9 - np.median(f*9), yerr=ferr*9,  capsize=4, fmt='^', ecolor='black', color='black', label='Martinez-Palomera et al. 2020', ls ='dotted')
+        plt.errorbar(x-min(x),f*10 - np.median(f*10), yerr=ferr*10,  capsize=4, fmt='^', ecolor='purple', color='purple', label='Martinez-Palomera et al. 2020', ls ='dotted')
     plt.legend()
 
     #plt.title('Aperture radii: {}", source {}'.format(r_in_arcsec, title), fontsize=15)
@@ -2737,6 +2843,29 @@ def ccd_to_detector_number(ccd):
     
     num = detector_nomenclature[ccd]
     return num
+
+
+def center_brightest_zone(data, thresh, area):
+    """
+    
+    retrieves x and y position of the brightest source 
+    in the data matrix
+
+    input:
+    -----
+    data
+    thresh
+    area
+
+    output:
+    ------
+    x, y 
+
+    """
+    objects = sep.extract(data, thresh, minarea=area)
+    obj = Select_largest_flux(data, objects)
+    return obj['x'], obj['y']
+
 
 def Select_largest_flux(data_sub, objects, na=6):
     """
