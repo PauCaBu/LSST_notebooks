@@ -730,7 +730,7 @@ def FluxJyToABMag(flux, fluxerr=None):
 
 def ABMagToFlux(mab, mab_err=None):
     """
-    Returns AB magnitude to flux in Jy
+    Returns AB magnitude to flux in nJy
 
     Input:
     -----
@@ -740,9 +740,9 @@ def ABMagToFlux(mab, mab_err=None):
     -------
     f : [float]
     """
-    f = 10**(-0.4*(mab - 8.90))
+    f = 10**(-0.4*(mab - 31.4)) 
     if type(mab_err) != type(None):
-        f_err = np.sqrt((f*np.log(10)*0.4*mab_err)**2)
+        f_err = np.sqrt((f*np.log(10)*0.4*mab_err)**2) 
         return f, f_err
     else:
         return f
