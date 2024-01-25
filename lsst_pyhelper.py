@@ -36,7 +36,6 @@ from astropy.table import Table, join, Column
 import decimal
 import seaborn as sns
 from scipy import special
-<<<<<<< HEAD
 import matplotlib as mpl
 from astropy.utils.data import get_pkg_data_filename
 from astropy.convolution import Gaussian2DKernel
@@ -59,9 +58,6 @@ sys.path.append('/home/pcaceres/kkernel/etc/')
 
 from kkernel import *
 #from sklearn.preprocessing import Normalize
-=======
-#x = np.linspace(-15, 5, 201)
->>>>>>> 3d6b2e5ca3ae093f66986cb32031602c81bf9007
 
 
 bblue='#0827F5'
