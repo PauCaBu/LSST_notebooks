@@ -3535,7 +3535,7 @@ def empirical_kernel(repo, visit, ccdnum, collection_calexp, plot=False, sn=10, 
         collected_stars = {}
         centroid_stars = {}
         second_cutout = cutout-5
-        sum_stars = np.zeros((2*second_cutout + 1, 2*second_cutout + 1))
+        sum_stars = np.zeros((2*second_cutout, 2*second_cutout))
 
         for ra, dec, fl in zip(ra_stars, dec_stars, inst_star_flux):
 
@@ -3543,7 +3543,7 @@ def empirical_kernel(repo, visit, ccdnum, collection_calexp, plot=False, sn=10, 
             afwDisplay.setDefaultMaskTransparency(100)
             afwDisplay.setDefaultBackend('matplotlib')
             x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
-            calexp_cutout = calexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2 + 1, cutout*2 + 1))
+            calexp_cutout = calexp.getCutout(obj_pos_lsst, size=lsst.geom.Extent2I(cutout*2, cutout*2))
             thresh = fl*0.6
 
             objects = sep.extract(calexp_cutout.image.array, thresh, minarea=30)
@@ -3557,7 +3557,7 @@ def empirical_kernel(repo, visit, ccdnum, collection_calexp, plot=False, sn=10, 
                 x_pix_cen = round(objects[0]['x'],0)
                 y_pix_cen = round(objects[0]['y'],0)
                 
-                calexp_cutout_to_use = calexp_cutout.image.array[int(y_pix_cen-second_cutout) + 1 :int(y_pix_cen+second_cutout) + 1, int(x_pix_cen-second_cutout) + 1:int(x_pix_cen+second_cutout) + 1]
+                calexp_cutout_to_use = calexp_cutout.image.array[int(y_pix_cen-second_cutout):int(y_pix_cen+second_cutout), int(x_pix_cen-second_cutout):int(x_pix_cen+second_cutout)]
                 collected_stars['star_{}'.format(number_stars)] = calexp_cutout_to_use
                 centroid_stars['star_{}'.format(number_stars)] = [x_pix_cen, y_pix_cen]
                 sum_stars += calexp_cutout_to_use
