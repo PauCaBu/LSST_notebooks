@@ -919,11 +919,11 @@ def stamps_and_LC_plot_forPaper(data_science, data_convol, data_diff, data_coadd
         print("No visits submitted")
         return
     columns = len(visits) 
-    n_rows = 5
+    n_rows = 3#5
     n_cols = len(visits)
 
     # Create the figure and subplots using gridspec
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*2, 5*2), facecolor='k')
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*2, n_rows*2), facecolor='k')
     gs = gridspec.GridSpec(n_rows, n_cols, figure=fig)
     #print('Dictionary of the diffexp images: ' , data_diff)
     arcsec_to_pixel  = 0.27
@@ -946,20 +946,20 @@ def stamps_and_LC_plot_forPaper(data_science, data_convol, data_diff, data_coadd
         kernel_image = kernel[visits[col]]
 
         ax1 = axes[0,col] 
-        ax2 = axes[1,col] 
-        ax3 = axes[2,col]
-        ax5 = axes[4,col] 
-        ax4 = axes[3,col] 
+        #ax2 = axes[1,col] 
+        #ax3 = axes[1,col]
+        ax5 = axes[2,col] 
+        ax4 = axes[1,col] 
         #print('ax4: ', ax4)
 
         ax1.set_xticklabels([])
-        ax2.set_xticklabels([])
-        ax3.set_xticklabels([])
+        #ax2.set_xticklabels([])
+        #ax3.set_xticklabels([])
         ax4.set_xticklabels([])
         ax5.set_xticklabels([])
         ax1.set_yticklabels([]) 
-        ax2.set_yticklabels([])
-        ax3.set_yticklabels([])
+        #ax2.set_yticklabels([])
+        #ax3.set_yticklabels([])
         ax4.set_yticklabels([])
         ax5.set_yticklabels([])
 
@@ -984,14 +984,14 @@ def stamps_and_LC_plot_forPaper(data_science, data_convol, data_diff, data_coadd
         ax4.set_xlim(x_pix_conv - cut_aux, x_pix_conv + cut_aux)
         ax4.set_ylim(y_pix_conv - cut_aux, y_pix_conv + cut_aux)
         
-        datacoadd_cut = coadd_image[int(y_pix_coad-cut_aux): int(y_pix_coad+cut_aux),int(x_pix_coad-cut_aux): int(x_pix_coad+cut_aux)].copy(order='C')
-        m, s = np.mean(np.array(datacoadd_cut).flatten()), np.std(np.array(datacoadd_cut).flatten())
-        #log_norm = matplotlib.colors.LogNorm(vmin=1e-3, vmax=m+ 3*s)
-        ax2.imshow(coadd_image, cmap='rocket', vmin=vmin, vmax=vmax)
-        ax2.add_patch(plt.Circle((x_pix_coad, y_pix_coad), radius=r_in_pixels, color=neon_green, fill=False))
-        #ax2.scatter(x_pix_coad, y_pix_coad, marker='x', color='k')
-        ax2.set_xlim(x_pix_coad - cut_aux, x_pix_coad + cut_aux)
-        ax2.set_ylim(y_pix_coad - cut_aux, y_pix_coad + cut_aux)
+        #datacoadd_cut = coadd_image[int(y_pix_coad-cut_aux): int(y_pix_coad+cut_aux),int(x_pix_coad-cut_aux): int(x_pix_coad+cut_aux)].copy(order='C')
+        #m, s = np.mean(np.array(datacoadd_cut).flatten()), np.std(np.array(datacoadd_cut).flatten())
+        ##log_norm = matplotlib.colors.LogNorm(vmin=1e-3, vmax=m+ 3*s)
+        #ax2.imshow(coadd_image, cmap='rocket', vmin=vmin, vmax=vmax)
+        #ax2.add_patch(plt.Circle((x_pix_coad, y_pix_coad), radius=r_in_pixels, color=neon_green, fill=False))
+        ##ax2.scatter(x_pix_coad, y_pix_coad, marker='x', color='k')
+        #ax2.set_xlim(x_pix_coad - cut_aux, x_pix_coad + cut_aux)
+        #ax2.set_ylim(y_pix_coad - cut_aux, y_pix_coad + cut_aux)
 
         datadiff_cut = diff_image[int(y_pix-cut_aux): int(y_pix+cut_aux),int(x_pix-cut_aux): int(x_pix+cut_aux)].copy(order='C')
         #m, s = np.mean(np.array(datadiff_cut).flatten()), np.std(np.array(datadiff_cut).flatten())
@@ -1003,13 +1003,13 @@ def stamps_and_LC_plot_forPaper(data_science, data_convol, data_diff, data_coadd
         #cbar4 = fig.colorbar(img4, ax=ax4)
         #cbar4.set_label('Difference Data')
 
-        ax3.imshow(kernel_image, cmap='rocket', vmin=np.min(kernel_image.flatten()), vmax=np.max(kernel_image.flatten()))
+        #ax3.imshow(kernel_image, cmap='rocket', vmin=np.min(kernel_image.flatten()), vmax=np.max(kernel_image.flatten()))
 
         if col==0:
             ax1.set_ylabel('Science', fontsize=17)
-            ax2.set_ylabel('Template', fontsize=17)
-            ax4.set_ylabel('my Convolved', fontsize=17)
-            ax3.set_ylabel('my Kernel', fontsize=17)
+            #ax2.set_ylabel('Template', fontsize=17)
+            ax4.set_ylabel('Convolved', fontsize=17)
+            #ax3.set_ylabel('my Kernel', fontsize=17)
             ax5.set_ylabel('Difference', fontsize=17)
     
     plt.subplots_adjust(hspace=0, wspace=0)
@@ -1637,8 +1637,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     flux_coadd=0
     fluxerr_coadd=0
-    #fluxes_cal = []
-    #fluxes_err_cal = []
+
     Mag_coadd = []
     Magerr_coadd = []
     Airmass = []
@@ -1683,12 +1682,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #arcsec_to_pixel = 0.2626 #arcsec/pixel, value from Manual of NOAO - DECam
     arcsec_to_pixel = 0.2626
     r_in_arcsec = r_diff 
-    #if type(r) != str:
-    #    r_aux = r/arcsec_to_pixel
 
     flux_reference = 0
     calib_reference = 0 
-    #fluxerr_reference = 0
     magzero_firstImage = 0
     zero_set = 0
     coadd_photocalib = 0
@@ -1711,7 +1707,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     #fixed_radii = worst_seeing/arcsec_to_pixel/sigma2fwhm * 0.75 # in pixels 
     fixed_radii = r_science/arcsec_to_pixel # in pixels 
     
-    print('fixed radii: ',fixed_radii)
+    print('fixed radii: ',fixed_radii. ' px')
 
     RA_source = []
     DEC_source = []
@@ -1844,12 +1840,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         ra_center, dec_center = wcs.pixelToSkyArray([px/2], [py/2], degrees=True)
         ra_center = ra_center[0]
         dec_center = dec_center[0]
-        #print('should be center of exposre')
-        #print('RA center : {} DEC center : {}'.format(ra_center, dec_center))
 
         ExpTime = diffexp.getInfo().getVisitInfo().exposureTime 
         ExpTimes.append(ExpTime)
-        #gain = 4
 
         if skip_observation:
             continue
@@ -2474,8 +2467,12 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
         s_m.set_array([])
         T = np.linspace(0,27,len(visits_aux))
-        fluxs_stars = [np.median(np.array(stars_calc_byme['star_{}_fs'.format(i+1)])) for i in range(nstars)]
-        stars_indexbF, =  np.where(fluxs_stars <= Max_flux_source) # stars that are equal or below the flux of the galaxy
+        fluxs_stars = [np.mean(np.array(stars_calc_byme['star_{}_fs'.format(i+1)])) for i in range(nstars)]
+        
+        maximal_fluxs_stars = [np.max(np.array(stars_calc_byme['star_{}_fs'.format(i+1)])) for i in range(nstars)]
+        
+        stars_indexbF, =  np.where(maximal_fluxs_stars <= Max_flux_source) # stars that have a maximal value below/equal to the maximal flux of the galaxy
+        
         if len(stars_indexbF) == 0:
             stars_indexbF, =  np.where(fluxs_stars <= np.percentile(fluxs_stars,50))
 
@@ -2483,7 +2480,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #print('columns stars_calc_byme: ', stars_calc_byme.columns)
         #print('columns stars bF: ', columns_stars_bF)
         stars_calc_byme = stars_calc_byme[list(columns_stars_bF)]
-        fluxs_stars_filtered = [np.median(np.array(stars_calc_byme['star_{}_fs'.format(i+1)])) for i in stars_indexbF]
+        fluxs_stars_filtered = [np.mean(np.array(stars_calc_byme['star_{}_fs'.format(i+1)])) for i in stars_indexbF]
 
         #fluxt_stars_norm_factor = np.linalg.norm(fluxt_stars)
         #fluxt_stars_norm = fluxt_stars/fluxt_stars_norm_factor
@@ -2788,12 +2785,19 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         stars_science_flux_columns = ['star_{}_fs'.format(i+1) for i in np.array(stars_indexbF)]
         stars_science_flux = stars_calc_byme[stars_science_flux_columns]
-        stars_science_flux -= stars_science_flux.median()
+        stars_science_flux -= stars_science_flux.mean()
         #stars_science_flux = stars_science_flux.reset_index()
-        stars_science_1sigmalow_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 16) for i in range(len(stars_science_flux))])
-        stars_science_1sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 84) for i in range(len(stars_science_flux))])
-        stars_science_2sigmalow_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 2.5) for i in range(len(stars_science_flux))])
-        stars_science_2sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 97.5) for i in range(len(stars_science_flux))])
+        #stars_science_1sigmalow_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 16) for i in range(len(stars_science_flux))])
+        #stars_science_1sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 84) for i in range(len(stars_science_flux))])
+        #stars_science_2sigmalow_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 2.5) for i in range(len(stars_science_flux))])
+        #stars_science_2sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_science_flux.loc[i]), 97.5) for i in range(len(stars_science_flux))])
+        stars_science_1sigmalow_byEpoch = np.array([np.std(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
+        stars_science_1sigmaupp_byEpoch = - np.array([np.std(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
+        stars_science_2sigmalow_byEpoch = np.array([2*np.std(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
+        stars_science_2sigmaupp_byEpoch = - np.array([2*np.std(np.array(stars_science_flux.loc[i])) for i in range(len(stars_science_flux))])
+
+        
+        
         Results_star['date'] = stars['dates']
         Results_star['stars_science_1sigmalow_byEpoch'] = stars_science_1sigmalow_byEpoch
         Results_star['stars_science_1sigmaupp_byEpoch'] = stars_science_1sigmaupp_byEpoch
@@ -2810,10 +2814,14 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #stars_science_flux = stars_science_flux.reset_index()
         stars_diff_sigma_byEpoch = np.array([np.std(np.array(stars_diff_flux.loc[i])) for i in range(len(stars_science_flux))])
         stars_diff_mean_byEpoch = np.array([np.mean(np.array(stars_diff_flux.loc[i])) for i in range(len(stars_science_flux))])
-        stars_diff_1sigmalow_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 16) for i in range(len(stars_diff_flux))])
-        stars_diff_1sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 84) for i in range(len(stars_diff_flux))])
-        stars_diff_2sigmalow_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 2.5) for i in range(len(stars_diff_flux))])
-        stars_diff_2sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 97.5) for i in range(len(stars_diff_flux))])
+        #stars_diff_1sigmalow_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 16) for i in range(len(stars_diff_flux))])
+        #stars_diff_1sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 84) for i in range(len(stars_diff_flux))])
+        #stars_diff_2sigmalow_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 2.5) for i in range(len(stars_diff_flux))])
+        #stars_diff_2sigmaupp_byEpoch = np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 97.5) for i in range(len(stars_diff_flux))])
+        stars_diff_1sigmalow_byEpoch = -stars_diff_sigma_byEpoch #np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 16) for i in range(len(stars_diff_flux))])
+        stars_diff_1sigmaupp_byEpoch = stars_diff_sigma_byEpoch #np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 84) for i in range(len(stars_diff_flux))])
+        stars_diff_2sigmalow_byEpoch = -2*stars_diff_sigma_byEpoch #np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 2.5) for i in range(len(stars_diff_flux))])
+        stars_diff_2sigmaupp_byEpoch = 2*stars_diff_sigma_byEpoch #np.array([np.percentile(np.array(stars_diff_flux.loc[i]), 97.5) for i in range(len(stars_diff_flux))])
 
         Results_star['stars_diff_1sigmalow_byEpoch'] = stars_diff_1sigmalow_byEpoch
         Results_star['stars_diff_1sigmaupp_byEpoch'] = stars_diff_1sigmaupp_byEpoch
@@ -3118,7 +3126,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     if SIBLING!=None:
         x, y, yerr = compare_to(SIBLING, sfx='mag', factor=0.75)
-        f, ferr = pc.ABMagToFlux(y, yerr)# in nJy
+        f, ferr = pc.ABMagToFlux(y, yerr) # in nJy
         #mfactor = 5e-10
         plt.errorbar(x-min(x), f*mfactor -  np.mean(f*mfactor), yerr=ferr*mfactor,  capsize=4, fmt='^', ecolor='orange', color='orange', label='Martinez-Palomera et al. 2020 nJy*' + str(mfactor), ls ='dotted')
     plt.legend(frameon=False)
