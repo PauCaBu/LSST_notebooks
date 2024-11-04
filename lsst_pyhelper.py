@@ -1496,8 +1496,13 @@ def Calib_Diff_and_Coadd_one_plot_cropped(repo, collection_diff, ra, dec, visits
 
 def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
     '''
-    Returns visits and dates by the order of the latter.
-
+    Returns visits and dates sorted by the latter.
+    
+    input:
+    repo [str] : Directory were butler repository is
+    visits [array] : Array of integers 
+    ccd_num [int] : number of the detector used
+    collection_diff [str] : name of the collection data (here the from difference Imaging)
 
     '''
     butler = Butler(repo)
@@ -1549,8 +1554,69 @@ def Find_worst_seeing(repo, visits, ccd_num, collection_calexp, arcsec_to_pixel 
     print('Worst Seeing in pixels: ', max(Seeing))
     j, = np.where(Seeing == np.max(Seeing))
     worst_visit = visits[j[0]]
-    return np.max(Seeing), worst_visit
+    return np.max(Seeing), 
 
+
+def centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps):
+    """
+    Function that helps to find the centroid of the stamp of an image.
+    
+    data_cal [matrix np.array]
+    x_pix [float] : x axis in pix
+    y_pix [float] : y axis in pix
+    wcs_cal [wcs lsst] : wcs object retrieved with lsst modules
+    mode [str] : if Eridanus, then 
+    show_stamps [bool] : If true, we plot the stamp with the new centroid
+    
+    """
+    print('before centering correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
+
+    side_half_length_box = 10 # in pixels 
+    minarea = (1/arcsec_to_pixel)**2 # area at which we more or less do aperture photometry (small)
+    
+    if mode == 'Eridanus':
+        side_length_box = 100 #cutout
+        
+    # We create a stamp surrounding the galaxy
+    sub_data = data_cal[int(y_pix-side_half_length_box):int(side_half_length_box+y_pix),int(x_pix-side_half_length_box):int(side_half_length_box+x_pix)].copy(order='C')
+    
+    m, s = np.mean(sub_data), np.std(sub_data)
+    
+    sepThresh = m + 1*s # it was 2*s before
+    peak_value = m + 3*s
+    
+    # We do an object detection 
+    objects = sep.extract(sub_data, sepThresh, minarea=minarea)
+
+    obj, j = Select_largest_flux(sub_data, objects)
+    x_pix_aux = obj['x']
+    y_pix_aux = obj['y']
+
+    x_pix_OgImage = x_pix_aux + x_pix - side_half_length_box
+    y_pix_OgImage = y_pix_aux + y_pix - side_half_length_box
+
+    print('New pixels after centering with SEP: xpix = {}, y_pix = {}'.format(x_pix_OgImage, y_pix_OgImage))
+    ra, dec = wcs_cal.pixelToSkyArray([x_pix_OgImage], [y_pix_OgImage], degrees=True)
+    obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+    obj_pos_2d = lsst.geom.Point2D(ra, dec)
+    x_pix, y_pix = x_pix_OgImage, y_pix_OgImage
+    
+    coords_science[visits_aux[i]] = [x_pix, y_pix]
+    
+    if show_stamps:
+        fig, ax = plt.subplots()
+        m, s = np.mean(sub_data), np.std(sub_data)
+        plt.title('Corrected coordinate',  fontsize=17)
+        plt.imshow(sub_data, cmap='rocket', vmin=m-s, vmax=m + 4*s)
+        plt.colorbar()
+        plt.scatter(x_pix_aux,y_pix_aux, marker = 'x', color=neon_green, label = 'updated centroid')
+        plt.scatter(x_pix_aux,y_pix_aux, marker = 'o', color='r', label = 'old coords')
+        circle = plt.Circle((x_pix_aux,y_pix_aux), radius = rd_aux, color=neon_green, fill = False, linewidth=4)
+        plt.gca().add_patch(circle)
+        plt.legend()
+        plt.show()
+        
+    return x_pix_OgImage, y_pix_OgImage
 
 
 def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r_science, r_diff, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, r_star = 6, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, verbose=False, tp='after_ID', area=None, thresh=None, mfactor=1, do_convolution=True, mode='Eridanus', name_to_save='', type_kernel = 'mine'):
@@ -1590,7 +1656,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     """
 
-
+    ####### Setting empty dictionaries and arrays ##################################################
     Data_science = {}
     Data_convol = {}
     Data_coadd = {}
@@ -1631,7 +1697,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     Fluxes_scaled = []
     Fluxes_err_scaled = []
-    #new_err = []
     
     magzero = []
 
@@ -1679,8 +1744,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     flags = []
     
     stats = {}
-    #arcsec_to_pixel = 0.2626 #arcsec/pixel, value from Manual of NOAO - DECam
-    arcsec_to_pixel = 0.2626
+    arcsec_to_pixel = 0.2626 #arcsec/pixel, value from Manual of NOAO - DECam
+    px = 2048
+    py = 4096
     r_in_arcsec = r_diff 
 
     flux_reference = 0
@@ -1697,42 +1763,63 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     magzero_reference = 0
     TOTAL_counts = 0
     TOTAL_convolved_counts = 0 
-
-    dates_aux, visits_aux = Order_Visits_by_Date(repo, visits, ccd_num, collection_diff)
-    worst_seeing, worst_seeing_visit = Find_worst_seeing(repo, visits, ccd_num, collection_diff) # sigma in pixels
-    worst_cal = butler.get('calexp', visit=worst_seeing_visit, detector=ccd_num , collections=collection_diff, instrument='DECam')
-    #worst_wcs = worst_cal.getWcs()
-    worst_psf = worst_cal.getPsf() 
-    sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
-    #fixed_radii = worst_seeing/arcsec_to_pixel/sigma2fwhm * 0.75 # in pixels 
-    fixed_radii = r_science/arcsec_to_pixel # in pixels 
     
-    print('fixed radii: ',fixed_radii. ' px')
-
     RA_source = []
     DEC_source = []
-    print('worst seeing visit: ', worst_seeing_visit)
+    
     distance_me_lsst = []
     kernel_stddev = []
+    
+    ##############################################################################################################
+    
+    # Here we sort the visits by the date 
+    dates_aux, visits_aux = Order_Visits_by_Date(repo, visits, ccd_num, collection_diff)
+    # Here we find the image with the worst seeing, and the associated visit number
+    worst_seeing, worst_seeing_visit = Find_worst_seeing(repo, visits, ccd_num, collection_diff) # sigma in pixels
+    # We retrieve the image that has the worst seeing
+    worst_cal = butler.get('calexp', visit=worst_seeing_visit, detector=ccd_num , collections=collection_diff, instrument='DECam')
+    worst_psf = worst_cal.getPsf() 
+    sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
+    
+    print('worst seeing visit: ', worst_seeing_visit)
+    
+    
+    # Here we loop over the images 
+    
     for i in range(len(visits_aux)):
         skip_observation = False
         zero_set_aux = zero_set
+        
+        # Difference Image 
         diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
+        
+        # Calibrated Image 
         calexp = butler.get('calexp', visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
+        
         try:
+            # Template image from the difference Image method
             coadd = butler.get('goodSeeingDiff_matchedExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
         except:
             coadd = butler.get('goodSeeingDiff_templateExp',visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
-
+        
+        # Background of calibrated image 
         calexpbkg = butler.get('calexpBackground', visit=visits_aux[i], detector=ccd_num , collections=collection_diff, instrument='DECam') 
 
+        # We retrieve the wcs from the images 
         wcs_coadd = coadd.getWcs()
         wcs_cal = calexp.getWcs()
         wcs = diffexp.getWcs()
-
-        px = 2048
-        py = 4096
-
+        ###############################
+        # Here get the psf of the images
+        
+        psf = diffexp.getPsf() 
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()# sigma in pixels 
+        Seeing.append(seeing) # append seeing to a Seeing array 
+        
+        psf_calexp = calexp.getPsf() 
+        seeing_calexp = psf_calexp.computeShape(psf_calexp.getAveragePosition()).getDeterminantRadius()
+        ########################
+        # We retrieve the images as a numpy matrix format.
         data = np.asarray(diffexp.image.array, dtype='float')
         Data_diff[visits_aux[i]] = data
         
@@ -1747,110 +1834,40 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         data_cal_bkg = np.asarray(calexpbkg.getImage().array,dtype='float')
         bkg_rms = np.sqrt(np.mean((data_cal_bkg.flatten()- np.mean(data_cal_bkg.flatten()))**2))
 
+        #####################
+        
+        # We get the x and y pixels corresponding to the ra dec of the images 
         
         obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
-        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)  # == to the wcs from the cal_image 
         coords_science[visits_aux[i]] = [x_pix, y_pix]
-
+       
+        
         x_pix_coadd, y_pix_coadd = wcs_coadd.skyToPixel(obj_pos_lsst)
         coords_coadd[visits_aux[i]] = [x_pix, y_pix]
+        
+        
 
-
-        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
-        psf = diffexp.getPsf() 
-        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()#*sigma2fwhm # in pixels! 
-
-        psf_calexp = calexp.getPsf() 
-        seeing_calexp = psf_calexp.computeShape(psf_calexp.getAveragePosition()).getDeterminantRadius()#*sigma2fwhm
+        ####### apertures we are working with: ##############
 
         rs_aux = r_science/arcsec_to_pixel
         rd_aux = r_diff/arcsec_to_pixel 
         rd_dyn = 2*seeing*0.75
-        Seeing.append(seeing)
-        calConv_image = 0 
         
-        meanValue_plot = 0 
-        stdValue_plot = 0 
-
+        ############################################
+        
+        
+        # If we choose to correct coord, we update x_pix and y_pix
         if correct_coord:
-
-            print('before centering correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
-
-            cut_aux = 10
-            cut_aux2 = 10 # in pixels 
-            minarea = (1/arcsec_to_pixel)**2
+            x_pix, y_pix = centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps)
             
-            if mode == 'Eridanus':
-                cut_aux = 10 #cutout
-                cut_aux2 = cutout
-                minarea = (1/arcsec_to_pixel)**2
-    
-            sub_data = data_cal[int(y_pix-cut_aux2):int(cut_aux2+y_pix),int(x_pix-cut_aux2):int(cut_aux2+x_pix)].copy(order='C')
-            sub_data_toplot = data_cal[int(y_pix-cut_aux):int(cut_aux+y_pix),int(x_pix-cut_aux):int(cut_aux+x_pix)].copy(order='C')
-            m, s = np.mean(sub_data_toplot), np.std(sub_data_toplot)
-            sepThresh = m + 2*s
-            peak_value = m + 3*s
-
-            objects = sep.extract(sub_data, sepThresh, minarea=minarea)
-            print('value thresh: ', sepThresh)
-
-            obj, j = Select_largest_flux(sub_data, objects)
-            x_pix_aux = obj['x']
-            y_pix_aux = obj['y']
-
-            x_pix_OgImage = x_pix_aux + x_pix - cut_aux2
-            y_pix_OgImage = y_pix_aux + y_pix - cut_aux2
-
-            if len(j)>1:
-
-                dis_aux = ((x_pix_OgImage - x_pix)**2 + (y_pix_OgImage - y_pix)**2)**(1/2)
-                try:
-                    l, = np.where(dis_aux == np.min(dis_aux))
-
-                    x_pix_OgImage = np.array(x_pix_OgImage)[l[0]]
-                    y_pix_OgImage = np.array(y_pix_OgImage)[l[0]]
-                except:
-                    print('Didnt found a detected source from the pipeline, I skip this observation')
-
-                    skip_observation = True
-                    continue
-
-            print('New pixels after centering with SEP: xpix = {}, y_pix = {}'.format(x_pix_OgImage, y_pix_OgImage))
-            ra, dec = wcs_cal.pixelToSkyArray([x_pix_OgImage], [y_pix_OgImage], degrees=True)
-            obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
-            obj_pos_2d = lsst.geom.Point2D(ra, dec)
-            x_pix, y_pix = x_pix_OgImage, y_pix_OgImage
-            coords_science[visits_aux[i]] = [x_pix, y_pix]
-            if show_stamps:
-                fig, ax = plt.subplots()
-                m, s = np.mean(sub_data_toplot), np.std(sub_data_toplot)
-                meanValue_plot = m 
-                stdValue_plot = s
-                plt.title('Corrected coord',  fontsize=17)
-                plt.imshow(data_cal, cmap='rocket', vmin=m-s, vmax=m + 4*s)
-                plt.colorbar()
-                plt.scatter(x_pix,y_pix, marker = 'x', color=neon_green, label = 'largest flux sep')
-                circle = plt.Circle((x_pix,y_pix), radius = rd_aux, color=neon_green, fill = False, linewidth=4)
-                plt.gca().add_patch(circle)
-                plt.xlim(x_pix - cut_aux, x_pix + cut_aux)
-                plt.ylim(y_pix - cut_aux, y_pix + cut_aux)
-                plt.legend()
-                plt.show()
 
         ra_center, dec_center = wcs.pixelToSkyArray([px/2], [py/2], degrees=True)
         ra_center = ra_center[0]
         dec_center = dec_center[0]
 
         ExpTime = diffexp.getInfo().getVisitInfo().exposureTime 
-        ExpTimes.append(ExpTime)
-
-        if skip_observation:
-            continue
-
-        if not correct_coord:
-            obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
-            obj_pos_2d = lsst.geom.Point2D(ra, dec)
-            x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
+        ExpTimes.append(ExpTime)     
 
         print('xpix, y_pix: {} {} '.format(x_pix, y_pix))
 
@@ -1860,7 +1877,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             cut_aux = 10
             sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
             
-            calConv, stddev_kernel = do_convolution_image(repo, main_root, visits_aux[i], ccd_num, collection_calexp, ra, dec, worst_seeing_visit =  worst_seeing_visit, mode=mode, type_kernel = type_kernel)
+            calConv, stddev_kernel = do_convolution_image(repo, main_root, visits_aux[i], ccd_num, collection_diff, ra, dec, worst_seeing_visit =  worst_seeing_visit, mode=mode, type_kernel = type_kernel)
             calConv_image = calConv[visits_aux[i]]
             calConv_variance = calConv['{}_variance'.format(visits_aux[i])]
             TOTAL_convolved_counts = np.sum(np.sum(calConv_image))
@@ -1958,7 +1975,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         flux_Dyn0p75, fluxerr_Dyn0p75, flag_DYN0p75 = sep.sum_circle(data, [x_pix], [y_pix], rd_dyn, var= np.asarray(diffexp.variance.array, dtype='float'))
         
         #flux_an, fluxerr_an, flag_an = sep.sum_circann(data, [x_pix], [y_pix], r_aux*2, r_aux*5, var = np.asarray(diffexp.variance.array, dtype='float'))
-        flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], fixed_radii, var = np.asarray(calexp.variance.array, dtype='float'))
+        flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], rs_aux, var = np.asarray(calexp.variance.array, dtype='float'))
         
         if do_convolution:
             #x_pix_conv, y_pix_conv = x_pix, y_pix
@@ -3107,7 +3124,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     plt.errorbar(source_of_interest.dates - min(source_of_interest.dates), source_of_interest.flux1_nJy, yerr = source_of_interest.fluxerr1_nJy, capsize=4, fmt='s', color='k', ls ='dotted', label = 'diff image radii = {}'.format(r_diff)) # , label ='Fixed aperture of {}" * 1'.format(r_diff)
     
     if do_convolution:
-        plt.errorbar(source_of_interest.dates - min(source_of_interest.dates), source_of_interest.fluxConv_cal_nJy - np.mean(source_of_interest.fluxConv_cal_nJy), yerr=source_of_interest.fluxerrConv_cal_nJy, capsize=4, fmt='s', label='science after conv radii = {}'.format(fixed_radii * arcsec_to_pixel), color='m', ls='dotted')
+        plt.errorbar(source_of_interest.dates - min(source_of_interest.dates), source_of_interest.fluxConv_cal_nJy - np.mean(source_of_interest.fluxConv_cal_nJy), yerr=source_of_interest.fluxerrConv_cal_nJy, capsize=4, fmt='s', label='science after conv radii = {}'.format(rs_aux * arcsec_to_pixel), color='m', ls='dotted')
 
     #plt.errorbar(source_of_interest.dates, source_of_interest.flux1p25_nJy, yerr = source_of_interest.fluxerr1p25_nJy, capsize=4, fmt='s', label ='Fixed aperture of {}" * 1.25'.format(r_diff), color=s_m.to_rgba(1.25), ls ='dotted')
     #plt.errorbar(source_of_interest.dates, source_of_interest.flux1p5_nJy, yerr = source_of_interest.fluxerr1p5_nJy, capsize=4, fmt='s', label ='Fixed aperture of {}" *1.5'.format(r_diff), color=s_m.to_rgba(1.5), ls ='dotted')
@@ -3152,9 +3169,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         plt.fill_between(source_of_interest.dates - min(source_of_interest.dates), stars_science_2sigmalow_byEpoch,  stars_science_2sigmaupp_byEpoch, alpha=0.1, color='m') #, label = 'stars 2-$\sigma$ dev'
 
     if do_convolution:
-       plt.errorbar(source_of_interest.dates - min(source_of_interest.dates), source_of_interest.fluxConv_cal_nJy - np.mean(source_of_interest.fluxConv_cal_nJy), yerr=source_of_interest.fluxerrConv_cal_nJy, capsize=4, fmt='s', label='science after conv radii = {}'.format(fixed_radii * arcsec_to_pixel), color='m', ls='dotted')
+       plt.errorbar(source_of_interest.dates - min(source_of_interest.dates), source_of_interest.fluxConv_cal_nJy - np.mean(source_of_interest.fluxConv_cal_nJy), yerr=source_of_interest.fluxerrConv_cal_nJy, capsize=4, fmt='s', label='science after conv radii = {}'.format(rs_aux * arcsec_to_pixel), color='m', ls='dotted')
     
-    plt.errorbar(source_of_interest.dates - min(source_of_interest.dates), source_of_interest.flux_nJy_cal - np.mean(source_of_interest.flux_nJy_cal), yerr = source_of_interest.fluxerr_nJy_cal, capsize=4, fmt='d', label ='science before conv radii = {}'.format(fixed_radii * arcsec_to_pixel), color='green', ls ='dotted')
+    plt.errorbar(source_of_interest.dates - min(source_of_interest.dates), source_of_interest.flux_nJy_cal - np.mean(source_of_interest.flux_nJy_cal), yerr = source_of_interest.fluxerr_nJy_cal, capsize=4, fmt='d', label ='science before conv radii = {}'.format(rs_aux * arcsec_to_pixel), color='green', ls ='dotted')
     plt.ylabel('Flux [nJy]', fontsize=15 )
     plt.xlabel('MJD - {}'.format(int(min(dates_aux))), fontsize=15)
     plt.show()
