@@ -1526,35 +1526,37 @@ def Order_Visits_by_Date(repo, visits, ccd_num, collection_diff):
 
     return dates_aux, visits_aux
 
-def Find_worst_seeing(repo, visits, ccd_num, collection_calexp, arcsec_to_pixel = 0.2626):
+def Find_worst_seeing(repo, visits, ccd_num, collection, arcsec_to_pixel = 0.2626):
     '''
-    Returns
+    Returns worst seeing (sigma) in pixel values 
 
     input
     ------
-    repo
-    visits
-    ccd_num
-    collection_calexp
+    repo [str] : directory were butler repository is
+    visits [array of ints] : 
+    ccd_num [int] : detector number
+    collection [str] : name of collection were calexp type image is found
 
     output
     -------
-    min(Seeing)
+    X, Y [float], [int] : maximum sigma seeing in pixels, visit number associated to it.
     '''
     butler = Butler(repo)
     Seeing = []
+    
     for i in range(len(visits)):
-        #diffexp = butler.get('goodSeeingDiff_differenceExp',visit=visits[i], detector=ccd_num , collections=collection_diff, instrument='DECam')
-        calexp = butler.get('calexp',visit=visits[i], detector=ccd_num , collections=collection_calexp, instrument='DECam') 
+        
+        calexp = butler.get('calexp',visit=visits[i], detector=ccd_num , collections=collection, instrument='DECam') 
         psf = calexp.getPsf() 
-        sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
+        #sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
 
-        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()#*sigma2fwhm #* arcsec_to_pixel # to arcseconds 
+        seeing = psf.computeShape(psf.getAveragePosition()).getDeterminantRadius()#* arcsec_to_pixel # to arcseconds 
         Seeing.append(seeing)
-    print('Worst Seeing in pixels: ', max(Seeing))
+    
     j, = np.where(Seeing == np.max(Seeing))
     worst_visit = visits[j[0]]
-    return np.max(Seeing), 
+    
+    return np.max(Seeing), worst_visit
 
 
 def centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps):
@@ -1570,12 +1572,12 @@ def centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps):
     
     """
     print('before centering correction: xpix, y_pix: {} {} '.format(x_pix, y_pix))
-
+    arcsec_to_pixel=0.2626
     side_half_length_box = 10 # in pixels 
     minarea = (1/arcsec_to_pixel)**2 # area at which we more or less do aperture photometry (small)
     
     if mode == 'Eridanus':
-        side_length_box = 100 #cutout
+        side_half_length_box = 100 #cutout
         
     # We create a stamp surrounding the galaxy
     sub_data = data_cal[int(y_pix-side_half_length_box):int(side_half_length_box+y_pix),int(x_pix-side_half_length_box):int(side_half_length_box+x_pix)].copy(order='C')
@@ -1601,7 +1603,6 @@ def centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps):
     obj_pos_2d = lsst.geom.Point2D(ra, dec)
     x_pix, y_pix = x_pix_OgImage, y_pix_OgImage
     
-    coords_science[visits_aux[i]] = [x_pix, y_pix]
     
     if show_stamps:
         fig, ax = plt.subplots()
@@ -1611,7 +1612,7 @@ def centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps):
         plt.colorbar()
         plt.scatter(x_pix_aux,y_pix_aux, marker = 'x', color=neon_green, label = 'updated centroid')
         plt.scatter(x_pix_aux,y_pix_aux, marker = 'o', color='r', label = 'old coords')
-        circle = plt.Circle((x_pix_aux,y_pix_aux), radius = rd_aux, color=neon_green, fill = False, linewidth=4)
+        circle = plt.Circle((x_pix_aux,y_pix_aux), radius = 1/arcsec_to_pixel, color=neon_green, fill = False, linewidth=4)
         plt.gca().add_patch(circle)
         plt.legend()
         plt.show()
@@ -1619,7 +1620,7 @@ def centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps):
     return x_pix_OgImage, y_pix_OgImage
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r_science, r_diff, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, r_star = 6, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, verbose=False, tp='after_ID', area=None, thresh=None, mfactor=1, do_convolution=True, mode='Eridanus', name_to_save='', type_kernel = 'mine'):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, r_science, r_diff, field='', factor=0.75, cutout=40, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=True, r_star = 6, correct_coord=False, bs=531, box=100, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', save_stamps=False, well_subtracted=False, verbose=False, tp='after_ID', area=None, thresh=None, mfactor=1, do_convolution=True, mode='Eridanus', name_to_save='', type_kernel = 'mine', show_coord_correction=False):
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
     
@@ -1809,7 +1810,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         wcs_coadd = coadd.getWcs()
         wcs_cal = calexp.getWcs()
         wcs = diffexp.getWcs()
+        
         ###############################
+        
         # Here get the psf of the images
         
         psf = diffexp.getPsf() 
@@ -1818,7 +1821,22 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         psf_calexp = calexp.getPsf() 
         seeing_calexp = psf_calexp.computeShape(psf_calexp.getAveragePosition()).getDeterminantRadius()
+        
         ########################
+        
+        # Here we append the exposure times         
+        
+        exp_visit_info = diffexp.getInfo().getVisitInfo()
+        ExpTime = exp_visit_info.exposureTime 
+        
+        ExpTimes.append(ExpTime)
+        
+        visit_date_python = exp_visit_info.getDate().toPython()
+        visit_date_astropy = Time(visit_date_python)
+        print(visit_date_astropy)
+        
+        ###############################      
+        
         # We retrieve the images as a numpy matrix format.
         data = np.asarray(diffexp.image.array, dtype='float')
         Data_diff[visits_aux[i]] = data
@@ -1846,8 +1864,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         x_pix_coadd, y_pix_coadd = wcs_coadd.skyToPixel(obj_pos_lsst)
         coords_coadd[visits_aux[i]] = [x_pix, y_pix]
         
-        
-
         ####### apertures we are working with: ##############
 
         rs_aux = r_science/arcsec_to_pixel
@@ -1859,88 +1875,37 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         
         # If we choose to correct coord, we update x_pix and y_pix
         if correct_coord:
-            x_pix, y_pix = centering_coords(data_cal, x_pix, y_pix, wcs_cal, mode, show_stamps)
-            
-
+            x_pix, y_pix = centering_coords(data_cal, x_pix, y_pix, wcs, mode, show_coord_correction)
+            ra, dec = wcs.pixelToSkyArray(x_pix, y_pix, degrees=True)
+        obj_pos_2d = lsst.geom.Point2D(ra, dec)   
+        coords_science[visits_aux[i]] = [x_pix, y_pix]
+        
+        # ra dec of the center of the image... still dont remember what for 
         ra_center, dec_center = wcs.pixelToSkyArray([px/2], [py/2], degrees=True)
         ra_center = ra_center[0]
         dec_center = dec_center[0]
-
-        ExpTime = diffexp.getInfo().getVisitInfo().exposureTime 
-        ExpTimes.append(ExpTime)     
+        
 
         print('xpix, y_pix: {} {} '.format(x_pix, y_pix))
 
         if do_convolution:
-
-            print('worst_seeing: ', worst_seeing)
-            cut_aux = 10
-            sigma2fwhm = 2.*np.sqrt(2.*np.log(2.))
             
-            calConv, stddev_kernel = do_convolution_image(repo, main_root, visits_aux[i], ccd_num, collection_diff, ra, dec, worst_seeing_visit =  worst_seeing_visit, mode=mode, type_kernel = type_kernel)
-            calConv_image = calConv[visits_aux[i]]
-            calConv_variance = calConv['{}_variance'.format(visits_aux[i])]
+            calConv_image, calConv_variance, kernel = do_convolution_image(calexp, worst_cal, ra, dec, mode=mode, type_kernel=type_kernel)
+            
             TOTAL_convolved_counts = np.sum(np.sum(calConv_image))
             print('fraction of Flux lost after convolution: ',1-TOTAL_convolved_counts/TOTAL_counts)
 
-            KERNEL[visits_aux[i]] = calConv['{}_kernel'.format(visits_aux[i])]
+            KERNEL[visits_aux[i]] = kernel
             Data_convol[visits_aux[i]] = calConv_image
-            print('stddev_kernel: ', stddev_kernel)
+           
             detectionTask = SourceDetectionTask()
-            kernel_stddev.append(stddev_kernel)
-            dataconv_cut = calConv_image[int(y_pix-cut_aux): int(y_pix+cut_aux),int(x_pix-cut_aux): int(x_pix+cut_aux)].copy(order='C')
-            peak_value = np.max(np.array(dataconv_cut).flatten())
-
-            x_pix_conv = x_pix
-            y_pix_conv = y_pix
-
-            if len(j)>1:
-                dis_aux = ((x_pix_conv - x_pix)**2 + (y_pix_conv - y_pix)**2)**(1/2)
-                try:
-                    l, = np.where(dis_aux == np.min(dis_aux))
-
-                    x_pix_conv = np.array(x_pix_conv)[l[0]]
-                    y_pix_conv = np.array(y_pix_conv)[l[0]]
-                except:
-                    print('Skipping this observation')
-                    continue
-            coords_convol[visits_aux[i]] = [x_pix_conv, y_pix_conv]#[x_pix_conv, y_pix_conv]
             
-            if show_stamps:
-                #m, s = np.mean(dataconv_cut.flatten()), np.std(dataconv_cut.flatten())
-
-                #norm = mcolors.LogNorm(vmin=m-s, vmax=m + s)
-                plt.title('Convolution downgrade to the worst seeing', fontsize=15)
-                plt.imshow(calConv_image, cmap='rocket', vmin=meanValue_plot-stdValue_plot, vmax=meanValue_plot+ 4 * stdValue_plot)
-                plt.colorbar()
-                #plt.scatter(x_pix_conv, y_pix_conv, marker='x', color=neon_green, label='centroid for Convolve image')                
-                plt.xlim(x_pix_conv - cut_aux, x_pix_conv + cut_aux)
-                plt.ylim(y_pix_conv - cut_aux, y_pix_conv + cut_aux)
-                circle = plt.Circle((x_pix,y_pix), radius = rd_aux, color=neon_green, fill = False, linewidth=4)
-                plt.gca().add_patch(circle)
-                if correct_coord:
-                    plt.scatter(x_pix, y_pix, marker='x', color='blue', label = 'Corrected centroid in science image')
-                else:
-                    plt.scatter(x_pix, y_pix, marker='x', color='blue', label= ' Position for science image')
-                plt.legend()
-                plt.show()
-        # Histogram of random part of image
-        if hist:
-            data_onedim = np.ndarray.flatten(data)
-            #data_for_hist.append(data_onedim)
-            #plt.hist(data_onedim, bins=500, histtype='step', log=True, color='#7A68A6')
-            #plt.title('Diffexp histogram', fontsize=15)
-            stats['{}'.format(visits_aux[i])] = data_onedim
-            plt.show()
-
-        ##############
-        
-        exp_visit_info = diffexp.getInfo().getVisitInfo()
-        
-        visit_date_python = exp_visit_info.getDate().toPython()
-        visit_date_astropy = Time(visit_date_python)
-        print(visit_date_astropy)            
-        b = np.nan_to_num(np.array(data))
+            x_pix_conv, y_pix_conv = centering_coords(calConv_image, x_pix, y_pix, wcs, mode, show_coord_correction)
+            coords_convol[visits_aux[i]] = [x_pix_conv, y_pix_conv]
+            
+            print('-----------------')
+        # dont know if b is used elsewhere            
+        # b = np.nan_to_num(np.array(data))
         
 
         print('Aperture radii: {} px'.format(rd_aux))
@@ -1957,11 +1922,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         calib_lsst.append(calib_image)
         calib_lsst_err.append(calib_image_err)
 
-        #print('Calibration Mean of Difference: ', photocalib.getCalibrationMean())
-        #print('Calibration Mean of Science: ', photocalib_cal.getCalibrationMean())
-        #print('Calibration Mean of Template: ', photocalib_coadd.getCalibrationMean())
-
-        #r_aux*=calib_image
+        diffexp_calib = np.asarray(photocalib.calibrateImage(diffexp.getMaskedImage()).image.array, dtype='float')
 
         flux, fluxerr, flag = sep.sum_circle(data, [x_pix], [y_pix], rd_aux, var = np.asarray(diffexp.variance.array, dtype='float')) # fixed aperture 
         flux_Fs, fluxerr_Fs, flag_FS = sep.sum_circle(data, [x_pix], [y_pix], factor*seeing, var = np.asarray(diffexp.variance.array, dtype='float'))
@@ -1978,9 +1939,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         flux_cal, fluxerr_cal, flag_cal = sep.sum_circle(data_cal, [x_pix], [y_pix], rs_aux, var = np.asarray(calexp.variance.array, dtype='float'))
         
         if do_convolution:
-            #x_pix_conv, y_pix_conv = x_pix, y_pix
-
             flux_conv, fluxerr_conv, flux_convFlag = sep.sum_circle(calConv_image, [x_pix_conv], [y_pix_conv], rd_aux, var=calConv_variance)
+            
             #flux_calConv, fluxerr_calConv, flag_calConv = sep.sum_circle(calConv_image, [x_pix], [y_pix], worst_seeing/sigma2fwhm, var = np.asarray(calexp.variance.array, dtype='float'), gain=4)
         
         flux_coadd, fluxerr_coadd, flag_coadd = sep.sum_circle(data_coadd, [x_pix], [y_pix], rs_aux, var = np.asarray(coadd.variance.array, dtype='float'))
@@ -1993,7 +1953,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             print('DATE: ', dates_aux[i])
             #Calib_and_Diff_plot_cropped(repo, collection_diff, collection_calexp, ra, dec, [visits_aux[i]], ccd_num, s=r)
             print('aperture that enters stamp plots: ', rs_aux)
-            Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=rs_aux, sd=rd_aux, cutout=40, field=field, name=title)
+            Calib_Diff_and_Coadd_plot_cropped_astropy(repo, collection_diff, ra, dec, [visits_aux[i]], ccd_num, s=rs_aux, sd=rd_aux, cutout=cutout, field=field, name=title)
             #values_across_source(calexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot='Calibrated exposure', save_plot =True, field=field, name='slit_science_{}_{}'.format(save_as, sfx))
             #values_across_source(diffexp, ra, dec , x_length = r_aux, y_length=1.5, stat='median', title_plot = 'Difference exposure', save_plot = True, field=field, name='slit_difference_{}_{}'.format(save_as, sfx))
             
@@ -2093,11 +2053,6 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         mag_ab_coadd_err = mags_coadd[1]
         
         print('flux before scaling: ', flux[0])
-
-        #if flux[0] > 1500 :
-        #    print('This source is bad subtracted')
-
-        #    pass
 
         Fluxes_unscaled.append(flux_coadd[0])
         Fluxes_err_unscaled.append(fluxerr_coadd[0])
@@ -3987,7 +3942,7 @@ def do_convolution_image_bla(repo, main_root, visit, ccd_num, collection_calexp,
 
 
 
-def do_convolution_image(repo, main_root, visit, ccd_num, collection_calexp, ra, dec, worst_seeing_visit=None, mode='Eridanus', type_kernel='mine'):   
+def do_convolution_image(calexp, worst_calexp, ra, dec, mode='Eridanus', type_kernel='mine'):   
     '''
     does convolution of an image 
 
@@ -4010,33 +3965,21 @@ def do_convolution_image(repo, main_root, visit, ccd_num, collection_calexp, ra,
 
 
     '''
-    #repo = '/home/pcaceres/data_hits'
-    print('About to do the convolutionnn...')
-    butler = Butler(repo)
-    #rint(butler)
-    field = collection_calexp.split('/')[-1]
-    calexp = butler.get('calexp', visit=visit, detector=ccd_num, collections=collection_calexp, instrument='DECam') 
+    print('About to do the convolution...')
+    
     calexp_array = np.asarray(calexp.image.array, dtype='float')
     var_calexp_array = np.asarray(calexp.variance.array, dtype='float')
-    #print('calexp array: ', calexp_array)
-    obj_pos_lsst = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
-    wcs = calexp.getWcs()
-    x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
-    convolved_image = {}    
+    wcs = calexp.getWcs()    
     
-    #directory = '{}/LSST_notebooks/convolved_images/convolved_image_{}_{}_{}_photutils_kernel'.format(main_root, visit, field, ccd_num)
-    #print('directory to search for convolved images: ', directory)
-    #file = '{}.pickle'.format(directory)
- 
-    if visit == worst_seeing_visit:
+    if calexp.getInfo().getVisitInfo().id == worst_calexp.getInfo().getVisitInfo().id:
         
-        convolved_image[visit] = calexp_array
-        convolved_image['{}_variance'.format(visit)] = var_calexp_array
-        convolved_image['{}_kernel'.format(visit)] = np.zeros((25,25))
-        return convolved_image, 0 
+        conv_image = calexp_array
+        conv_variance = var_calexp_array
+        kernel = np.zeros((25,25))
+        return conv_image, conv_variance, kernel
 
     # loading kernel from worst image 
-    worst_calexp = butler.get('calexp', visit=worst_seeing_visit, detector=ccd_num, collections=collection_calexp, instrument='DECam')
+    
     worst_psf =  worst_calexp.getPsf()
     worst_seeing = worst_psf.computeShape(worst_psf.getAveragePosition()).getDeterminantRadius()
     
@@ -4065,20 +4008,16 @@ def do_convolution_image(repo, main_root, visit, ccd_num, collection_calexp, ra,
             print('alpha = ', optimized_alpha)
             kernel = AiryDisk2DKernel(optimized_alpha).array
     else:
-
         kernel = Panchos_kernel(repo, collection_calexp, ccd_num, visit, worst_seeing_visit).solfilter
+   
     print('using the configuration for: ', mode)    
 
     # doing convolution 
 
-    conv = custom_convolve(calexp_array, kernel) 
+    conv_image = custom_convolve(calexp_array, kernel) 
     conv_variance = custom_convolve(var_calexp_array, kernel**2)
-
-    convolved_image[visit] = conv
-    convolved_image['{}_variance'.format(visit)] = conv_variance
-    convolved_image['{}_kernel'.format(visit)] = kernel
-    print(' I did the convolution !!!!')
-    return convolved_image, 0
+    
+    return conv_image, conv_variance, kernel
 
 
 def Panchos_kernel(repo, collection_calexp, ccd_num, visit, worst_seeing_visit):
