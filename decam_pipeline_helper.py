@@ -258,20 +258,20 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         
         TAP_service = vo.dal.TAPService("https://mast.stsci.edu/vo-tap/api/v0.1/ps1dr2/")
         job = TAP_service.run_async("""
-            SELECT objID, RAMean, DecMean, nDetections, ng, nr, ni, nz, ny, gMeanPSFMag, rMeanPSFMag, iMeanPSFMag, zMeanPSFMag, yMeanPSFMag, gMeanKronMag, iMeanKronMag
-            FROM dbo.MeanObjectView
+            SELECT objID, RAMean, DecMean, nDetections, ng, nr, ni, nz, ny, gPSFMag, rPSFMag, iPSFMag, zPSFMag, yPSFMag, gKronMag, iKronMag, ipsfLikelihood
+            FROM dbo.StackObjectView
             WHERE
             CONTAINS(POINT('ICRS', RAMean, DecMean), CIRCLE('ICRS', {}, {}, .13))=1
             AND nDetections >= 3
             AND ng > 0 AND ni > 0
-            AND iMeanPSFMag < 21 AND iMeanPSFMag - iMeanKronMag < 0.05
+            AND iPSFMag < 21 AND iPSFMag - iKronMag < 0.05 AND iPSFMag > 14
               """.format(ra_center, dec_center))
         TAP_results = job.to_table()
-        
-        #print(TAP_results.columns)
-        
+
         RA_stars = np.array(TAP_results['RAMean'])
         DEC_stars = np.array(TAP_results['DecMean'])
+        log_abs_iPSF_likelihood = np.log10(np.abs(np.array(TAP_results['ipsfLikelihood'])))
+
         psf_gmag_stars = np.array(TAP_results['gMeanPSFMag'])
         
         idx = np.where((RA_stars>ra_corner.min()) & (RA_stars<ra_corner.max()) & (DEC_stars>dec_corner.min()) & (DEC_stars < dec_corner.max()))
