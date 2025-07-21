@@ -799,97 +799,213 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             calConv_image = Data_convol[visits[ii]]
         except KeyError:
             continue
+        
+        for kk, idx_star in enumerate(closest_indices):
+        
+            #idx_star = closest_indices[0]
+            coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
+            pixel_star = wcs_cal.world_to_pixel(coord_star)
+            x_pix_star = pixel_star[0]
+            y_pix_star = pixel_star[1]
+            x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)        
+
             
-        idx_star = closest_indices[0]
-        coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        pixel_star = wcs_cal.world_to_pixel(coord_star)
-        x_pix_star = pixel_star[0]
-        y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)        
-        prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        profiles_stars['mag{}_{}'.format(round_magnitudes[0], visits[ii])] = prof/max(prof)
-        
-        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        plt.title('star = '+ str(idx_star))
-        plt.show()
-        
-        idx_star = closest_indices[1] 
-        coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        pixel_star = wcs_cal.world_to_pixel(coord_star)
-        x_pix_star = pixel_star[0]
-        y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        profiles_stars['mag{}_{}'.format(round_magnitudes[1], visits[ii])] = prof/max(prof)
-        
-        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        plt.title('star = '+ str(idx_star))
-        plt.show()
-        
-        idx_star = closest_indices[2] 
-        coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        pixel_star = wcs_cal.world_to_pixel(coord_star)
-        x_pix_star = pixel_star[0]
-        y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        profiles_stars['mag{}_{}'.format(round_magnitudes[2], visits[ii])] = prof/max(prof)
-        
-        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        plt.title('star = '+ str(idx_star))
-        plt.show()
-        
-        idx_star = closest_indices[3]
-        coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        pixel_star = wcs_cal.world_to_pixel(coord_star)
-        x_pix_star = pixel_star[0]
-        y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        profiles_stars['mag{}_{}'.format(round_magnitudes[3], visits[ii])] = prof/max(prof)
-        
-        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        plt.title('star = '+ str(idx_star))
-        plt.show()
-        
-        idx_star = closest_indices[4]
-        coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        pixel_star = wcs_cal.world_to_pixel(coord_star)
-        x_pix_star = pixel_star[0]
-        y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        profiles_stars['mag{}_{}'.format(round_magnitudes[4], visits[ii])] = prof/max(prof)
-        
-        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        plt.title('star = '+ str(idx_star))
-        plt.show()
-        
-        idx_star = closest_indices[5]
-        coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        pixel_star = wcs_cal.world_to_pixel(coord_star)
-        x_pix_star = pixel_star[0]
-        y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        profiles_stars['mag{}_{}'.format(round_magnitudes[5], visits[ii])] = prof/max(prof)
-        
-        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        plt.title('star = '+ str(idx_star))
-        plt.show()
-        
-        idx_star = closest_indices[6]
-        coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        pixel_star = wcs_cal.world_to_pixel(coord_star)
-        x_pix_star = pixel_star[0]
-        y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        profiles_stars['mag{}_{}'.format(round_magnitudes[6], visits[ii])] = prof/max(prof)
-        
-        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        plt.title('star = '+ str(idx_star))
-        plt.show()
+
+            #if np.any(np.fabs(star_stamp - wim)>0.01):
+            
+            
+
+            #plt.imshow(calConv_image[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13])
+            #plt.title('star = '+ str(idx_star))
+            #plt.show()
+            
+            #if ((star_stamp - wim)**2).sum()<0.005:
+            #    profiles_stars['mag{}_{}'.format(round_magnitudes[kk], visits[ii])] = np.ones(15)
+            #else:    
+            #    print('we dont reject this star ') 
+            prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
+            profiles_stars['mag{}_{}'.format(round_magnitudes[kk], visits[ii])] = prof/max(prof)
+            
+            star_stamp = calConv_image[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13]
+            star_stamp /= star_stamp.sum()
+            
+            if ((star_stamp - wim)**2).sum()>0.005:
+                profiles_stars['mag{}_{}'.format(round_magnitudes[kk], visits[ii])] = np.zeros(15)
+            
+            #star_stamp = calConv_image[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13]
+            #star_stamp /= star_stamp.sum()
+            
+            
+            #plt.imshow(star_stamp - wim)
+            #plt.colorbar()
+            #plt.title('Residual')
+            #plt.show()
+
+            #print('are there values above 0.01? ',  np.any(np.fabs(star_stamp - wim)>0.01))
+            #print('square sum of the residuals: ', ((star_stamp - wim)**2).sum())
+            
+            #   profiles_stars['mag{}_{}'.format(round_magnitudes[0], visits[ii])] = np.zeros(15)
+            #    print('this star does not qualify')
+
+            #else:
+
+            #print('')
+        #idx_star = closest_indices[1] 
+        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
+        #pixel_star = wcs_cal.world_to_pixel(coord_star)
+        #x_pix_star = pixel_star[0]
+        #y_pix_star = pixel_star[1]
+        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
+        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
+        #star_stamp /= star_stamp.sum()
+        #
+        #if np.any(np.fabs(star_stamp - wim)>0.01):
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[1], visits[ii])] = np.zeros(15)
+        #    print('this star does not qualify')
+        #    
+        #    plt.imshow(star_stamp)
+        #    plt.colorbar()
+        #    plt.show()
+        #
+        #else:
+        #        
+        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[1], visits[ii])] = prof/max(prof)
+        #
+        #
+        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        #plt.title('star = '+ str(idx_star))
+        #plt.show()
+        #
+        #idx_star = closest_indices[2] 
+        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
+        #pixel_star = wcs_cal.world_to_pixel(coord_star)
+        #x_pix_star = pixel_star[0]
+        #y_pix_star = pixel_star[1]
+        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
+        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
+        #star_stamp /= star_stamp.sum()
+        #
+        #if np.any(np.fabs(star_stamp - wim)>0.01):
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[2], visits[ii])] = np.zeros(15)
+        #    print('this star does not qualify')
+#
+        #    plt.imshow(star_stamp)
+        #    plt.colorbar()
+        #    plt.show()
+        #
+        #else:
+        #        
+        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[2], visits[ii])] = prof/max(prof)
+        #
+        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        #plt.title('star = '+ str(idx_star))
+        #plt.show()
+        #
+        #idx_star = closest_indices[3]
+        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
+        #pixel_star = wcs_cal.world_to_pixel(coord_star)
+        #x_pix_star = pixel_star[0]
+        #y_pix_star = pixel_star[1]
+        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
+        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
+        #star_stamp /= star_stamp.sum()
+        #
+        #if np.any(np.fabs(star_stamp - wim)>0.01):
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[3], visits[ii])] = np.zeros(15)
+        #    print('this star does not qualify')
+        #    
+        #    plt.imshow(star_stamp)
+        #    plt.colorbar()
+        #    plt.show()
+        #
+        #else:
+        #        
+        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[3], visits[ii])] = prof/max(prof)
+        #
+        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        #plt.title('star = '+ str(idx_star))
+        #plt.show()
+        #
+        #idx_star = closest_indices[4]
+        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
+        #pixel_star = wcs_cal.world_to_pixel(coord_star)
+        #x_pix_star = pixel_star[0]
+        #y_pix_star = pixel_star[1]
+        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
+        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
+        #star_stamp /= star_stamp.sum()
+        #
+        #if np.any(np.fabs(star_stamp - wim)>0.01):
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[4], visits[ii])] = np.zeros(15)
+        #    print('this star does not qualify')
+        #    
+        #    plt.imshow(star_stamp)
+        #    plt.colorbar()
+        #    plt.show()
+        #
+        #else:
+        #        
+        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[4], visits[ii])] = prof/max(prof)
+        #
+        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        #plt.title('star = '+ str(idx_star))
+        #plt.show()
+        #
+        #idx_star = closest_indices[5]
+        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
+        #pixel_star = wcs_cal.world_to_pixel(coord_star)
+        #x_pix_star = pixel_star[0]
+        #y_pix_star = pixel_star[1]
+        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
+        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
+        #star_stamp /= star_stamp.sum()
+        #
+        #if np.any(np.fabs(star_stamp - wim)>0.01):
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[5], visits[ii])] = np.zeros(15)
+        #    print('this star does not qualify')
+        #    
+        #    plt.imshow(star_stamp)
+        #    plt.colorbar()
+        #    plt.show()
+        #
+        #else:
+        #        
+        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[5], visits[ii])] = prof/max(prof)
+        #
+        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        #plt.title('star = '+ str(idx_star))
+        #plt.show()
+        #
+        #idx_star = closest_indices[6]
+        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
+        #pixel_star = wcs_cal.world_to_pixel(coord_star)
+        #x_pix_star = pixel_star[0]
+        #y_pix_star = pixel_star[1]
+        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
+        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
+        #star_stamp /= star_stamp.sum()
+        #
+        #if np.any(np.fabs(star_stamp - wim)>0.01):
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[6], visits[ii])] = np.zeros(15)
+        #    print('this star does not qualify')
+        #    
+        #    plt.imshow(star_stamp)
+        #    plt.colorbar()
+        #    plt.show()
+        #
+        #else:
+        #        
+        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
+        #    profiles_stars['mag{}_{}'.format(round_magnitudes[6], visits[ii])] = prof/max(prof)
+        #
+        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        #plt.title('star = '+ str(idx_star))
+        #plt.show()
         
     if verbose:
         print('good_stars: ', id_good_stars)
@@ -1197,7 +1313,7 @@ def do_convolution_image(calexp_array, var_calexp_array, im, wim,  mask_im, wors
     
         
     else:
-        star_pairs = get_starpairs(calexp_array, worst_calexp, visit, worst_visit, stars_in_common, mask_im, worst_mask, verbose=verbose)
+        star_pairs = get_starpairs(calexp_array, worst_calexp, visit, worst_visit, stars_in_common, mask_im, worst_mask, im, wim, verbose=verbose)
         kernel = lp.get_Panchos_matching_kernel(star_pairs)
         #kernel/=kernel.sum() # Here we normalize the Kernel
     
@@ -1216,11 +1332,12 @@ def do_convolution_image(calexp_array, var_calexp_array, im, wim,  mask_im, wors
         
     return conv_image, conv_variance, kernel
 
-def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  mask_im, worst_mask, show_stamps=False, verbose=False):
+def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  mask_im, worst_mask, psf_im, psf_wim, show_stamps=False, verbose=False):
     
     visits = [visit, worst_visit]
     cal_images = [calexp, worst_calexp]
     masks = [mask_im, worst_mask]
+    psfs = [psf_im, psf_wim]
     stars_dict = {}
     nstars = len(stars_in_common)
     
@@ -1238,6 +1355,7 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  ma
         
         cal_array = cal_images[j]
         im_mask = masks[j]
+        psf = psfs[j]
         
         for i in range(nstars):        
             xpix = X_pix_stars[i]
@@ -1276,6 +1394,8 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  ma
                     array_of_stars[i] = np.zeros((cutout*2, cutout*2))
                     
                 
+                
+                
 
                 calexp_bkg = cal_array[round(ypix)-2*cutout:round(ypix)+2*cutout, round(xpix)-2*cutout:round(xpix)+2*cutout].copy(order='C')
 
@@ -1286,6 +1406,23 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  ma
 
                 calexp_cutout_to_use -= bkg.background
                 array_of_stars[i] = calexp_cutout_to_use
+                
+                
+                star_stamp = cal_array[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13].copy(order='C')
+                star_stamp /= star_stamp.sum()
+                
+                if (((star_stamp - psf)**2).sum()>0.005):
+                    
+                    #plt.imshow(star_stamp - psf)
+                    #plt.colorbar()
+                    #plt.show()
+                    
+                    if verbose:
+                        print('star is not psf-like')
+                        print('star: ',i)
+                    bad_stars.append(i)
+                    array_of_stars[i] = np.zeros((cutout*2, cutout*2))
+                
             
             except ValueError:
                 bad_stars.append(i)
