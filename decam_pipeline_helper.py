@@ -19,6 +19,7 @@ from matplotlib.cm import get_cmap
 from pathlib import Path
 import os
 import warnings
+from photutils.utils._convolution import _filter_data
 
 warnings.filterwarnings('ignore')
 
@@ -45,13 +46,13 @@ def retrieve_stars_common(image, x_pix_stars, y_pix_stars, worst_image, x_pix_st
     Updated_x_pix_stars_worst = []
     Updated_y_pix_stars_worst = []
     
-    cutout = 20
+    cutout = 23
     
     for i, (x,y,xw,yw) in enumerate(zip(x_pix_stars, y_pix_stars, x_pix_stars_worst, y_pix_stars_worst)):
         star_mask_ima = maskimage[round(y)-cutout:round(y)+cutout, round(x)-cutout:round(x)+cutout]
         star_mask_wima = maskimage_worst[round(yw)-cutout:round(yw)+cutout, round(xw)-cutout:round(xw)+cutout]
         
-        if np.sum(star_mask_ima)>0 or np.sum(star_mask_wima)>0:
+        if np.any(star_mask_ima !=0) or np.any(star_mask_wima!=0):
             continue
         else:
             Updated_x_pix_stars.append(x)
@@ -218,9 +219,9 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     
     #worst_bkg = sep.Background(worst_ima, mask=worst_mask)
     
-    sigma_clip = SigmaClip(sigma=3., maxiters=2)
+    sigma_clip_bkg = SigmaClip(sigma=3., maxiters=2)
     bkg_estimator = MedianBackground()
-    worst_bkg = Background2D(worst_ima, (100, 100), sigma_clip=sigma_clip, mask=worst_mask,
+    worst_bkg = Background2D(worst_ima, (100, 100), sigma_clip=sigma_clip_bkg, mask=worst_mask,
                            bkg_estimator=bkg_estimator, edge_method='pad')
     
     worst_ima = worst_ima - worst_bkg.background
@@ -272,7 +273,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         DEC_stars = np.array(TAP_results['DecMean'])
         log_abs_iPSF_likelihood = np.log10(np.abs(np.array(TAP_results['ipsfLikelihood'])))
 
-        psf_gmag_stars = np.array(TAP_results['gMeanPSFMag'])
+        psf_gmag_stars = np.array(TAP_results['gPSFMag'])
         
         idx = np.where((RA_stars>ra_corner.min()) & (RA_stars<ra_corner.max()) & (DEC_stars>dec_corner.min()) & (DEC_stars < dec_corner.max()))
         
@@ -285,7 +286,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         DEC_stars = DEC_stars[ra_inds_sort[::-1]]
         psf_gmag_stars = psf_gmag_stars[ra_inds_sort[::-1]]
         
-        print('number of stars: ', len(RA_stars))
+        if verbose:
+            print('number of stars: ', len(RA_stars))
         
         stars_within_mags, = np.where((psf_gmag_stars>=15) & (psf_gmag_stars<=22)) 
             
@@ -293,7 +295,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         DEC_stars = DEC_stars[stars_within_mags]
         psf_gmag_stars = psf_gmag_stars[stars_within_mags]
         
-        print('number of stars within mags 15.5 and 20: ', len(RA_stars))
+        if verbose:
+            print('number of stars within mags 15.5 and 20: ', len(RA_stars))
         
     ###### Here we set the pandas dataframe were the lightcurves are stored
     # flux_ImagDiff_nJy_0.5wseeing
@@ -338,9 +341,9 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         m, s = np.mean(data_cal), np.std(data_cal)
         #bkg = sep.Background(data_cal, mask=mask_im)
         
-        sigma_clip = SigmaClip(sigma=3., maxiters=2)
+        sigma_clip_bkg = SigmaClip(sigma=3., maxiters=2)
         bkg_estimator = MedianBackground()
-        bkg_science = Background2D(data_cal, (100, 100), sigma_clip=sigma_clip, mask=mask_im,
+        bkg_science = Background2D(data_cal, (100, 100), sigma_clip=sigma_clip_bkg, mask=mask_im,
                            bkg_estimator=bkg_estimator, edge_method='pad')
         data_cal = data_cal - bkg_science.background
         data_cal = np.ascontiguousarray(data_cal)
@@ -349,20 +352,25 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         Data_science[visits[i]] = data_cal
         wcs_cal = wcs_im[i]
         
+        
         print('-------- Looking at visit: ', visits[i])
+        
         coord = SkyCoord(ra * u.deg, dec * u.deg, frame='icrs')
         x_pix, y_pix = wcs_cal.world_to_pixel(coord) #wcs.skyToPixel(obj_pos_lsst)
         x_pix, y_pix = float(x_pix), float(y_pix)
         
-        print('before == x_pix, y_pix: ', x_pix, y_pix)
+        if verbose:
+            print('before == x_pix, y_pix: ', x_pix, y_pix)
         
         if (x_pix>px) or (x_pix<0) or (y_pix > py) or (y_pix<0):
-            print('pixels are out of this image... skipping this observation')
+            if verbose:
+                print('pixels are out of this image... skipping this observation')
             continue 
             
         if (x_pix<cutout) or (x_pix>px-cutout) or (y_pix<cutout) or (y_pix> py- cutout):
             cutout = int(np.min(np.array([x_pix, y_pix, px - x_pix, py - y_pix]))) - 1
-            print('updating cutout value to: ', cutout)
+            if verbose:
+                print('updating cutout value to: ', cutout)
             pass
             
         
@@ -381,7 +389,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         else:
             x_pix, y_pix = [x_pix], [y_pix]
         
-        print('x_pix, y_pix: ', x_pix, y_pix)
+        if verbose:
+            print('x_pix, y_pix: ', x_pix, y_pix)
         
         coords_stars = SkyCoord(RA_stars * u.deg, DEC_stars * u.deg, frame='icrs')
         pixels_stars = wcs_cal.world_to_pixel(coords_stars)
@@ -406,11 +415,13 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             #plt.colorbar()
             #plt.title('science image, with corrected centering')
             #plt.show()
-            
-        print('sum of values within the cutout of the science image: ', np.sum(data_cal[round(y_pix[0])-cutout:round(y_pix[0])+cutout+1, round(x_pix[0])-cutout:round(x_pix[0])+cutout+1]))
+        
+        if verbose:
+            print('sum of values within the cutout of the science image: ', np.sum(data_cal[round(y_pix[0])-cutout:round(y_pix[0])+cutout+1, round(x_pix[0])-cutout:round(x_pix[0])+cutout+1]))
         
         if np.sum(data_cal[round(y_pix[0])-cutout:round(y_pix[0])+cutout+1, round(x_pix[0])-cutout:round(x_pix[0])+cutout+1]) < 1:
-            print('the stamp at the galaxy position is empty!')
+            if verbose:
+                print('the stamp at the galaxy position is empty!')
             continue
 
         if do_convolution:
@@ -429,8 +440,9 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             
             
             if len(stars_in_common)<1:
-                print('length stars in common: ', len(stars_in_common))
-                print('.... skipping this observation')
+                if verbose:
+                    print('length stars in common: ', len(stars_in_common))
+                    print('.... skipping this observation')
                 KERNEL[visits[i]] = np.zeros(np.shape(im))
                 Data_convol[visits[i]] = np.zeros(np.shape(data_cal)) # calConv_image
                 coords_convol[visits[i]] = [np.array(x_pix), np.array(y_pix)]
@@ -438,13 +450,13 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             
             dates_to_plot.append(dates[i])
 
-            calConv_image, calConv_variance, kernel = lp.do_convolution_image(data_cal, var_data_cal, im, 
-                                                                              wim, mode=mode, 
+            calConv_image, calConv_variance, kernel = do_convolution_image(data_cal, var_data_cal, im, 
+                                                                              wim,  mask_im, worst_mask, mode=mode, 
                                                                               type_kernel=type_kernel, 
                                                                               visit=visits[i], 
                                                                               worst_visit=worst_visit, 
                                                                               stars_in_common=stars_in_common,
-                                                                              worst_calexp=worst_ima)#, im=im, wim=wim)
+                                                                              worst_calexp=worst_ima, verbose=verbose)#, im=im, wim=wim)
             
             TOTAL_convolved_counts = np.sum(np.sum(calConv_image))
             #print('fraction of Flux lost after convolution: ',1-TOTAL_convolved_counts/TOTAL_counts)
@@ -469,9 +481,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
                 x_pix_conv = x_pix
                 y_pix_conv = y_pix
                 coords_convol[visits[i]] = [np.array(x_pix), np.array(y_pix)]
-            print('-----------------')
 
-            #if check_convolution:
+        #if check_convolution:
         visits_used.append(visits[i])
         # return    
         Data_diff[visits[i]] = data_cal
@@ -482,9 +493,11 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         
         source_of_interest.loc[i,name_columns_inst] = flux_sci.flatten()
         source_of_interest.loc[i,name_columns_instErr] = fluxerr_sci.flatten()
-
-        print('Aperture radii in px: ', ap_radii / arcsec_to_pixel)
-        print('Aperture radii in arcsec: ', ap_radii)
+        
+        
+        if verbose:
+            print('Aperture radii in px: ', ap_radii / arcsec_to_pixel)
+            print('Aperture radii in arcsec: ', ap_radii)
         
         if do_convolution:
             
@@ -496,16 +509,17 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             variance_stamp = calConv_variance[round(y_pix_conv[0])-dx_stamp:round(y_pix_conv[0])+dx_stamp+1,round(x_pix_conv[0])-dx_stamp:round(x_pix_conv[0])+dx_stamp+1].copy(order='C')
             
             try:
-                sigma_clip = SigmaClip(sigma=3., maxiters=2)
+                sigma_clip_bkg = SigmaClip(sigma=3., maxiters=2)
                 bkg_estimator = MedianBackground()
-                bkg = Background2D(convolved_stamp, (10, 10), sigma_clip=sigma_clip,
+                bkg = Background2D(convolved_stamp, (10, 10), sigma_clip=sigma_clip_bkg,
                        bkg_estimator=bkg_estimator, edge_method='pad')
                 data_image_wout_bkg = convolved_stamp - bkg.background
                 
             except ValueError:
                 
                 data_image_wout_bkg = convolved_stamp
-                print('background subtraction failed')    
+                if verbose:
+                    print('background subtraction failed')    
                 
             x_pix_stamp = x_pix_conv[0] - round(x_pix_conv[0]) + dx_stamp
             y_pix_stamp = y_pix_conv[0] - round(y_pix_conv[0]) + dx_stamp
@@ -556,25 +570,20 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             
                 
             nstars = len(X_pix_stars)
-            print('Number of stars: ', nstars)
+            if verbose:
+                print('Number of stars: ', nstars)
                 
             # If its the first image loop, we create the pandas df
             star_aperture = r_star # arcseconds #r_star * fwhm/2
             star_aperture/=arcsec_to_pixel # transform it to pixel values 
             
             if i==0:
-                #columns_stars_imagDiff_fluxes = list(np.ndarray.flatten(np.array([ 'star_{}_ImagDiff_fnJy'.format(i+1) for i in range(nstars)])))
-                #columns_stars_imagDiff_fluxesErr = list(np.ndarray.flatten(np.array([ 'star_{}_ImagDiff_fnJy_err'.format(i+1) for i in range(nstars)])))
-                
+               
                 columns_stars_convDown_instfluxes = list(np.ndarray.flatten(np.array([ 'star_{}_convDown_instflx'.format(i+1) for i in range(nstars)])))
                 columns_stars_convDown_instfluxesErr = list(np.ndarray.flatten(np.array([ 'star_{}_convDown_instflx'.format(i+1) for i in range(nstars)])))
-                
-                #columns_stars_convDown_fluxes = list(np.ndarray.flatten(np.array([ 'star_{}_convDown_fnJy'.format(i+1) for i in range(nstars)])))
-                #columns_stars_convDown_fluxesErr = list(np.ndarray.flatten(np.array([ 'star_{}_convDown_fnJy_err'.format(i+1) for i in range(nstars)])))
-                
+                                
                 columns_stars_convDown_mag = list(np.ndarray.flatten(np.array([ 'star_{}_convDown_mag'.format(i+1) for i in range(nstars)])))
                 columns_stars_convDown_magErr = list(np.ndarray.flatten(np.array([ 'star_{}_convDown_magErr'.format(i+1) for i in range(nstars)])))
-                # columns_stars_convDown_fluxes + columns_stars_convDown_fluxesErr +
                 stars_calc_byme = pd.DataFrame(columns= columns_stars_convDown_mag + columns_stars_convDown_magErr)
             
             saturated_star = []
@@ -597,7 +606,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
                     number_of_sat_pixels = np.sum(mask_star_cutout) #um(sum(np.array([[str_digit in str(element) for element in row] for row in calexp_star_cutout.getMask().array])))
                     
                     if number_of_sat_pixels > 0:
-                        print('star with bad pixels, so we skip...')
+                        if verbose:
+                            print('star with bad pixels, so we skip...')
                         fluxConv_nJy.append(np.nan)
                         fluxerrConv_nJy.append(np.nan)
                         magsConv_nJy.append(np.nan)
@@ -723,7 +733,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     
     idx_nan_mags, = np.where(np.isnan(magsconv_star_mean))
     idx_var_mags, = np.where(magsconv_star_std > 1)
-    print('these stars are >1 mag variable: ', idx_var_mags)
+    if verbose:
+        print('these stars are >1 mag variable: ', idx_var_mags)
     id_good_stars = np.array([item for item in range(nstars) if item not in idx_nan_mags])
     id_good_stars = np.array([item for item in id_good_stars if item not in idx_var_mags])
     id_good_stars = np.array([item for item in id_good_stars if item not in saturated_star])
@@ -744,28 +755,45 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     #print('magnitude within galaxy mag: ', mags_good_stars[ids_stars_within_gal_mag])
     n_stars_within_gal_mag = len(ids_stars_within_gal_mag)
     
-    print('n_stars_within_gal_mag : ',n_stars_within_gal_mag )
-    print('ids_stars_within_gal_mag : ',ids_stars_within_gal_mag )
-    print('mean conv mag of GALAXY: ', mean_conv_mag)
-    
-    print('len(RA_stars): ', len(RA_stars))
-    print('len(DEC_stars): ', len(DEC_stars))
-    #print('len(psf_gmag_stars_good): ', len(psf_gmag_stars_good))
-    print('closest_indeces: ', closest_indices)
+    if verbose:
+        print('n_stars_within_gal_mag : ',n_stars_within_gal_mag )
+        print('ids_stars_within_gal_mag : ',ids_stars_within_gal_mag )
+        print('mean conv mag of GALAXY: ', mean_conv_mag)
+
+        print('len(RA_stars): ', len(RA_stars))
+        print('len(DEC_stars): ', len(DEC_stars))
+        print('closest_indeces: ', closest_indices)
     
     stars_science_mag_columns = ['star_{}_convDown_mag'.format(i+1) for i in ids_stars_within_gal_mag]
     stars_science_mag = stars_calc_byme[stars_science_mag_columns] #.dropna(axis=1, how='any')
-    print('stars science magnitude df: ')
-    print('stars within gal magnitude : ', ids_stars_within_gal_mag + 1)
-    print('average magnitude: ', stars_science_mag.mean())
+    
+    if verbose:
+        print('stars science magnitude df: ')
+        print('stars within gal magnitude : ', ids_stars_within_gal_mag + 1)
+        print('average magnitude: ', stars_science_mag.mean())
     stars_science_mag -= stars_science_mag.mean(skipna=True)
     #print('stars_calc_byme: ', stars_calc_byme)
-    print('stars_science_mag : ', stars_science_mag)
-    stars_science_disp = stars_science_mag.std(axis=1, skipna=True) #np.array([float(np.std(np.array(stars_science_mag.loc[i]))) for i in range(len(stars_science_mag))])
+    if verbose:
+        print('stars_science_mag : ', stars_science_mag)
+    #stars_science_disp = stars_science_mag.std(axis=1, skipna=True) 
     
+    #stars_science_disp = []
+    #for index, row in stars_science_mag.iterrows():
+    #    stars_science_disp.append(sigma_clip(stars_science_mag.loc[index], sigma=3, maxiters=4)) ========
+    #stars_science_disp = np.array(stars_science_disp)
+    #np.array([float(np.std(np.array(stars_science_mag.loc[i]))) for i in range(len(stars_science_mag))])
+    
+    clipped = sigma_clip(stars_science_mag, sigma=3, maxiters=4, axis=1)
+
+    # Step 2: Convert masked array to DataFrame with NaNs
+    clipped_df = pd.DataFrame(clipped.filled(np.nan), index=stars_science_mag.index, columns=stars_science_mag.columns)
+
+    # Step 3: Compute dispersion (standard deviation) row-wise, ignoring NaNs
+    stars_science_disp = clipped_df.std(axis=1, skipna=True)
 
     for ii in range(len(images)):
         # de 0 a 6
+        
         wcs_cal = wcs_im[ii]
         try:
             calConv_image = Data_convol[visits[ii]]
@@ -777,68 +805,94 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         pixel_star = wcs_cal.world_to_pixel(coord_star)
         x_pix_star = pixel_star[0]
         y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3)        
+        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)        
         prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
         profiles_stars['mag{}_{}'.format(round_magnitudes[0], visits[ii])] = prof/max(prof)
+        
+        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        plt.title('star = '+ str(idx_star))
+        plt.show()
         
         idx_star = closest_indices[1] 
         coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
         pixel_star = wcs_cal.world_to_pixel(coord_star)
         x_pix_star = pixel_star[0]
         y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3)
+        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
         prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
         profiles_stars['mag{}_{}'.format(round_magnitudes[1], visits[ii])] = prof/max(prof)
         
+        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        plt.title('star = '+ str(idx_star))
+        plt.show()
         
         idx_star = closest_indices[2] 
         coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
         pixel_star = wcs_cal.world_to_pixel(coord_star)
         x_pix_star = pixel_star[0]
         y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3)
+        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
         prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
         profiles_stars['mag{}_{}'.format(round_magnitudes[2], visits[ii])] = prof/max(prof)
         
+        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        plt.title('star = '+ str(idx_star))
+        plt.show()
         
         idx_star = closest_indices[3]
         coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
         pixel_star = wcs_cal.world_to_pixel(coord_star)
         x_pix_star = pixel_star[0]
         y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3)
+        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
         prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
         profiles_stars['mag{}_{}'.format(round_magnitudes[3], visits[ii])] = prof/max(prof)
+        
+        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        plt.title('star = '+ str(idx_star))
+        plt.show()
         
         idx_star = closest_indices[4]
         coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
         pixel_star = wcs_cal.world_to_pixel(coord_star)
         x_pix_star = pixel_star[0]
         y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3)
+        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
         prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
         profiles_stars['mag{}_{}'.format(round_magnitudes[4], visits[ii])] = prof/max(prof)
         
+        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        plt.title('star = '+ str(idx_star))
+        plt.show()
         
         idx_star = closest_indices[5]
         coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
         pixel_star = wcs_cal.world_to_pixel(coord_star)
         x_pix_star = pixel_star[0]
         y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3)
+        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
         prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
         profiles_stars['mag{}_{}'.format(round_magnitudes[5], visits[ii])] = prof/max(prof)
-                
+        
+        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        plt.title('star = '+ str(idx_star))
+        plt.show()
+        
         idx_star = closest_indices[6]
         coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
         pixel_star = wcs_cal.world_to_pixel(coord_star)
         x_pix_star = pixel_star[0]
         y_pix_star = pixel_star[1]
-        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3)
+        x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
         prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
         profiles_stars['mag{}_{}'.format(round_magnitudes[6], visits[ii])] = prof/max(prof)
-    
-    print('good_stars: ', id_good_stars)
+        
+        plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
+        plt.title('star = '+ str(idx_star))
+        plt.show()
+        
+    if verbose:
+        print('good_stars: ', id_good_stars)
     
     # To plot the variability of the fluxes of stars in the convolved image :
     Results_star = pd.DataFrame(columns = ['date', 'stars_scienceMag_1sigmaupp_byEpoch', 'stars_scienceMag_2sigmaupp_byEpoch', 'stars_scienceMag_1sigmalow_byEpoch', 'stars_scienceMag_2sigmalow_byEpoch'])
@@ -873,9 +927,10 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     s_m.set_array([])
     
     for i in ids_stars_within_gal_mag:
-        print('plotting mags of stars: ', i+1)
+        if verbose:
+            print('plotting mags of stars: ', i+1)
         
-        fs_star = (np.array(stars_calc_byme['star_{}_convDown_mag'.format(i+1)])).flatten()
+        fs_star = (np.array(clipped_df['star_{}_convDown_mag'.format(i+1)])).flatten()
         fs_star_err = np.ndarray.flatten(np.array(stars_calc_byme['star_{}_convDown_magErr'.format(i+1)]))
         
         fs_star = np.array([float(x) if str(x) != 'nan' else np.nan for x in fs_star])
@@ -886,12 +941,12 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         if np.sum(mask) < 2:
             continue  # skip stars with too few valid points
 
-        stars_yarray = fs_star[mask] - np.nanmean(fs_star, dtype=np.float64)
-        mean_mag = np.nanmean(fs_star, dtype=np.float64)
+        stars_yarray = fs_star[mask] #- np.nanmean(fs_star, dtype=np.float64)
+        mean_mag = np.nanmean(fs_star, dtype=np.float64) 
 
         plt.errorbar(np.array(dates_to_plot)[mask], stars_yarray, yerr=fs_star_err[mask],
                      capsize=4, fmt='s', ls='solid', 
-                     color=s_m.to_rgba(mean_mag), label=f'Star {i+1}')
+                     color=s_m.to_rgba(mean_mag + mean_conv_mag), label=f'Star {i+1}')
 
         for w, label in enumerate(np.ones(np.sum(mask))*(int(i+1))):
             plt.annotate(str(int(label)), (np.array(dates_to_plot)[mask][w], stars_yarray[w]), color='green')
@@ -940,6 +995,11 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         ax.errorbar(eval_mag, np.zeros(len(eval_mag)), yerr=std_at_given_mag, xerr=1.0, color='m', capsize=3, fmt='o', ls=' ')
         ax.set_xlabel('$m_g$', fontsize=15)
         ax.set_ylabel('$Average \Delta m_g$', fontsize=15)
+        
+        if save:
+            plt.savefig(subsubfolder_source / 'Average_mags_dispersion.jpeg', bbox_inches='tight')
+ 
+        
         plt.show()
     except:
         pass
@@ -972,7 +1032,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             conv_magerr = np.array(source_of_interest[column_err_to_take])
             #print('conv_mag: ', conv_mag)
             mean_mag = np.nanmean(conv_mag, dtype='float64')
-            
+            #print('conv_magerr: ', conv_magerr)
+            conv_magerr[conv_magerr<0] = 0
             ax.errorbar(source_of_interest.dates, conv_mag - mean_mag, yerr=conv_magerr, capsize=4, fmt='o', color=s_m.to_rgba(fa), ls='-')
             
             if SIBLING!=None:
@@ -1014,7 +1075,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     
     sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted = lp.Excess_variance(np.array(source_of_interest['mag_ConvDown_nJy_1.0_arcsec']), np.array(source_of_interest['magErr_ConvDown_nJy_1.0_arcsec']))
     
-    print('sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted: ', sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted)
+    if verbose:
+        print('sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted: ', sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted)
     
     if (mode=='HiTS' or mode=='HITS') and SIBLING is not None and jname is not None:
         
@@ -1062,7 +1124,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     
     lp.plot_star_profiles(profiles_stars, round_magnitudes, visits,  np.linspace(0.05, 6, 15), worst_visit, fwhm * arcsec_to_pixel, save_as = subsubfolder_source / 'curve_growth_stars.jpeg' )
     
-    print('coords convol: ', coords_convol)
+    if verbose:
+        print('coords convol: ', coords_convol)
     
     lp.stamps_instcal(Data_science, Data_convol, coords_science, coords_convol, source_of_interest,
                       Results_star, visits_used, KERNEL, fwhm, SIBLING = SIBLING, cut_aux=cutout, 
@@ -1071,9 +1134,198 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
 
     if save:
         source_of_interest.to_csv(subsubfolder_source / 'galaxy_LCs_dps.csv')
-                                  
-    print(source_of_interest)
+     
+    source_of_interest['mag_zero_point'] = magzeros
+    
+    if verbose:
+        print(source_of_interest)
     return source_of_interest 
+
+def do_convolution_image(calexp_array, var_calexp_array, im, wim,  mask_im, worst_mask, mode='Eridanus', type_kernel='mine', visit=None, worst_visit=None, worst_calexp=None, stars_in_common=None, verbose=False):   
+    '''
+    does convolution of an image 
+
+    input
+    -----
+    repo [string] : directory were processed images are
+    main_root [string] : home directory
+    visit [int] : number of exposure
+    ccd_num [int] : number of detector
+    collection_calexp [string] : directory of reduced images 
+    ra [float] : Right ascention in radians
+    dec [float] : Declination in radians 
+    worst_seeing_visit [int/None] : 
+    mode [string] :
+    type_kernel [string]: 
+    
+    output
+    ------
+    convoled_image
+
+
+    '''
+    
+    if verbose:
+        print('About to do the convolution...') 
+
+        print('shape of kernel: ', im.shape)
+        print('shape of worst kernel: ', wim.shape)
+
+    
+    if visit == worst_visit :
+        
+        conv_image = calexp_array
+        conv_variance = var_calexp_array
+        kernel = wim
+        return conv_image, conv_variance, kernel
+    
+    
+    if (type_kernel=='mine'):
+
+        if (mode == 'Eridanus'):
+            alpha = 0.3
+            beta = 0.25
+            kernel = create_matching_kernel(im, wim, SplitCosineBellWindow(alpha=alpha, beta=beta))   
+
+        if (mode == 'HITS' or mode=='HiTS'):
+            
+            initial_alpha = 1.5 
+            result = minimize(objective_function, initial_alpha, args=(im, wim), method='Nelder-Mead', bounds=[(0, None)])    
+            optimized_alpha = result.x[0]
+            print('alpha = ', optimized_alpha)
+            kernel = AiryDisk2DKernel(optimized_alpha).array
+    
+        
+    else:
+        star_pairs = get_starpairs(calexp_array, worst_calexp, visit, worst_visit, stars_in_common, mask_im, worst_mask, verbose=verbose)
+        kernel = lp.get_Panchos_matching_kernel(star_pairs)
+        #kernel/=kernel.sum() # Here we normalize the Kernel
+    
+    if verbose:
+        print('this kernel type {} has shape: '.format(type_kernel), kernel.shape)    
+        print('using the configuration for: ', mode)    
+
+    # doing convolution 
+    
+    if (type_kernel=='mine'):
+        conv_image = custom_convolve(calexp_array, kernel) 
+        conv_variance = custom_convolve(var_calexp_array, kernel**2)
+    else:
+        conv_image = _filter_data(calexp_array, kernel, mode='nearest')
+        conv_variance = _filter_data(var_calexp_array, kernel**2, mode='nearest')
+        
+    return conv_image, conv_variance, kernel
+
+def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  mask_im, worst_mask, show_stamps=False, verbose=False):
+    
+    visits = [visit, worst_visit]
+    cal_images = [calexp, worst_calexp]
+    masks = [mask_im, worst_mask]
+    stars_dict = {}
+    nstars = len(stars_in_common)
+    
+    bad_stars = []
+    
+    for j, v in enumerate(visits):
+    
+        coords_stars = {}
+        
+        X_pix_stars = np.array(stars_in_common['base_SdssCentroid_x_{}'.format(v)], dtype='float64')
+        Y_pix_stars = np.array(stars_in_common['base_SdssCentroid_y_{}'.format(v)], dtype='float64')
+                
+        cutout = 23  
+        array_of_stars = np.zeros((nstars, cutout*2, cutout*2))
+        
+        cal_array = cal_images[j]
+        im_mask = masks[j]
+        
+        for i in range(nstars):        
+            xpix = X_pix_stars[i]
+            ypix = Y_pix_stars[i]
+            
+
+            try:
+                
+                x_pix_new, y_pix_new = lp.centering_coords(cal_array, xpix, ypix, int(cutout/2)+1, show_stamps=True, how='sep', minarea=3, flux_thresh=1.6, reject_nearby = True)
+                
+                if (x_pix_new == xpix and y_pix_new == ypix) or (x_pix_new == 0 and y_pix_new == 0):
+                    
+                    if verbose:
+                        print('if centering is not working, we skip this star')
+                        print('star: ',i)
+                        
+                    bad_stars.append(i)
+                    array_of_stars[i] = np.zeros((cutout*2, cutout*2))
+                    
+                    
+                    continue
+                    
+                calexp_cutout_to_use = cal_array[round(y_pix_new[0])-cutout:round(y_pix_new[0])+cutout, round(x_pix_new[0])-cutout:round(x_pix_new[0])+cutout].copy(order='C')
+                
+                mask_calexp_to_use = im_mask[round(y_pix_new[0])-cutout:round(y_pix_new[0])+cutout, round(x_pix_new[0])-cutout:round(x_pix_new[0])+cutout].copy(order='C')
+                
+                #print('star: ',i, ' mask sum: ', mask_calexp_to_use.sum())
+                
+                if mask_calexp_to_use.sum()>0:
+                    
+                    if verbose:
+                        print('mask of image has bad pixels')
+                        print('star: ',i)
+                        
+                    bad_stars.append(i)
+                    array_of_stars[i] = np.zeros((cutout*2, cutout*2))
+                    
+                
+
+                calexp_bkg = cal_array[round(ypix)-2*cutout:round(ypix)+2*cutout, round(xpix)-2*cutout:round(xpix)+2*cutout].copy(order='C')
+
+                sigma_clip = SigmaClip(sigma=3.,maxiters=2)
+                bkg_estimator = MedianBackground()
+
+                bkg = Background2D(calexp_cutout_to_use, (cutout * 2, cutout * 2), sigma_clip=sigma_clip, bkg_estimator=bkg_estimator)
+
+                calexp_cutout_to_use -= bkg.background
+                array_of_stars[i] = calexp_cutout_to_use
+            
+            except ValueError:
+                bad_stars.append(i)
+                array_of_stars[i] = np.zeros((cutout*2,cutout*2))
+                
+        stars_dict[v] = array_of_stars 
+        
+        
+    bad_stars = np.array(bad_stars)
+    bad_stars = np.unique(bad_stars)
+    
+    if verbose:
+        print('bad stars: ', bad_stars)
+        print('stars array: ', stars_dict[visit].shape)
+    
+    
+    
+    if len(bad_stars) > 0:
+        
+        stars_image = np.delete(stars_dict[visit], bad_stars, axis=0)
+        stars_wimage = np.delete(stars_dict[worst_visit], bad_stars, axis=0)
+        if verbose:
+            print('stars array after: ', stars_image.shape)
+    
+    
+    else:
+        stars_image = stars_dict[visit]
+        stars_wimage = stars_dict[worst_visit]
+        
+   
+    starpairs = np.stack([stars_wimage, stars_image])
+    
+    if show_stamps:
+        
+        lp.plot_star_pairs(starpairs, ncols=5, figsize=(15, 6))
+
+    return starpairs
+
+
+
 
 def check_psf(data_cal, stars_x_pix, star_y_pix, wcs_cal, bkg, mask, plot=False, cutout=24, cutout_for_psf=12):
    

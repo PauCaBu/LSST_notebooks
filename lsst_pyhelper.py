@@ -1869,7 +1869,7 @@ def Find_worst_seeing(repo, visits, ccd_num, collection, arcsec_to_pixel = 0.27)
     return np.max(Seeing), worst_visit
 
 
-def centering_coords(data_cal, x_pix, y_pix, side_half_length_box, show_stamps, how='sep', minarea = np.pi * (0.5/arcsec_to_pixel)**2, flux_thresh=None):
+def centering_coords(data_cal, x_pix, y_pix, side_half_length_box, show_stamps, how='sep', minarea = np.pi * (0.5/arcsec_to_pixel)**2, flux_thresh='2s', reject_nearby=False, verbose=False):
     """
     Function that helps to find the centroid of the stamp of an image.
     
@@ -1893,11 +1893,19 @@ def centering_coords(data_cal, x_pix, y_pix, side_half_length_box, show_stamps, 
     
     m, s = np.mean(sub_data), np.std(sub_data)
     
-    sepThresh = m + 2*s # it was 3*s before
+    if flux_thresh == '2s':
+        sepThresh = m + 2*s # it was 3*s before
+    
+    if flux_thresh == '3s':
+        sepThresh = m + 3*s 
+        
+    if flux_thresh == '4s':
+        sepThresh = m + 4*s
+    
     peak_value = m + 3*s
     
     
-    if flux_thresh is not None:
+    if type(flux_thresh) != str:
         sepThresh = flux_thresh
         
     #print('sepTresh: ', sepThresh)
@@ -1912,8 +1920,21 @@ def centering_coords(data_cal, x_pix, y_pix, side_half_length_box, show_stamps, 
             #print('obj: ',obj)
             x_pix_aux = obj['x']
             y_pix_aux = obj['y']
+            
+            if reject_nearby:
+                x_pixs = objects['x']
+                y_pixs = objects['y']
+                for k in range(len(x_pixs)):
+                    d = ((x_pixs-x_pix_aux)**2 + (y_pix_aux - y_pix)**2)**(1/2)
+                    #print('pixel seperation between objects:', d)
+                    if d<side_half_length_box*0.6:
+                        return 0, 0
+                
+                                 
+            
         except ValueError:
-            print('Centering using {} failed... '.format(how))
+            if verbose:
+                print('Centering using {} failed... '.format(how))
             
             return np.array([x_pix]), np.array([y_pix])
             #x_pix_aux = np.array([side_half_length_box])
@@ -2357,6 +2378,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             
             stars_between_two_exp = Inter_Join_Tables_from_LSST(repo, [visits_aux[i],worst_seeing_visit], ccd_num, collection_diff)
             # mags_stars_lsst = stars_table['base_PsfFlux_mag_{}'.format(worst_seeing_visit)]
+            #isolated_idxs = return_isolated(stars_between_two_exp['base_SdssCentroid_x_{}'.format(worst_seeing_visit)], stars_between_two_exp['base_SdssCentroid_y_{}'.format(worst_seeing_visit)], thresh=23)
+            
+            #stars_between_two_exp = stars_between_two_exp.loc[isolated_idxs] 
             
             stars_between_two_exp = stars_between_two_exp[(stars_between_two_exp['base_PsfFlux_mag_{}'.format(worst_seeing_visit)] >= 16) & (stars_between_two_exp['base_PsfFlux_mag_{}'.format(worst_seeing_visit)] <= 21)]
             
@@ -2538,7 +2562,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                 dx_stamp = 50
                 convolved_stamp = calConv_image[round(y_pix_conv[0])-dx_stamp:round(y_pix_conv[0])+dx_stamp+1,round(x_pix_conv[0])-dx_stamp:round(x_pix_conv[0])+dx_stamp+1]
                 m, s = np.mean(convolved_stamp), np.std(convolved_stamp)
-                plt.imshow(calConv_image, vmin=m, vmax = m+5*s)
+                plt.imshow(calConv_image, vmin=m, vmax = m+6*s)
                 plt.scatter(x_pix_conv[0], y_pix_conv[0], marker='x', color='red')
                 plt.xlim(x_pix_conv[0]-dx_stamp,x_pix_conv[0]+dx_stamp) 
                 plt.ylim(y_pix_conv[0]-dx_stamp,y_pix_conv[0]+dx_stamp)
@@ -2557,7 +2581,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         profiles['{}'.format(visits_aux[i])] = prof/max(prof)
         
         
-        if do_lc_stars == True:
+        if do_lc_stars:
             
             if stars_from == 'lsst_pipeline':
                 RA_stars = np.array(stars_table['coord_ra_ddegrees_{}'.format(visits_aux[i])], dtype=float)
@@ -4634,7 +4658,7 @@ def do_convolution_image(calexp_array, var_calexp_array, im, wim, mode='Eridanus
         
         
     else:
-        star_pairs = get_starpairs(calexp_array, worst_calexp, visit, worst_visit, stars_in_common)
+        star_pairs = get_starpairs(calexp_array, worst_calexp, visit, worst_visit, stars_in_common, calexp_exposure, worst_calexp_exposure)
         kernel = get_Panchos_matching_kernel(star_pairs)
         #kernel/=kernel.sum() # Here we normalize the Kernel
     
@@ -4652,12 +4676,15 @@ def do_convolution_image(calexp_array, var_calexp_array, im, wim, mode='Eridanus
         
     return conv_image, conv_variance, kernel
 
-def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common):
+def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common, calexp_exposure, worst_calexp_exposure, show_stamps=True):
     
     visits = [visit, worst_visit]
     cal_images = [calexp, worst_calexp]
+    cal_exposures = [calexp_exposure, worst_calexp_exposure]
     stars_dict = {}
     nstars = len(stars_in_common)
+    
+    bad_stars = []
     
     for j, v in enumerate(visits):
     
@@ -4666,25 +4693,53 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common):
         X_pix_stars = np.array(stars_in_common['base_SdssCentroid_x_{}'.format(v)], dtype='float64')
         Y_pix_stars = np.array(stars_in_common['base_SdssCentroid_y_{}'.format(v)], dtype='float64')
         
+        
+        ra_stars = np.array(stars_in_common['coord_ra_ddegrees_{}'.format(v)], dtype='float64')
+        dec_stars = np.array(stars_in_common['coord_dec_ddegrees_{}'.format(v)], dtype='float64')
+        
         cal_array = cal_images[j]
+        cal_exposure = cal_exposures[j]
         #cal_array = np.asarray(cal_image.image.array, dtype='float64')
- 
-        array_of_stars = np.zeros((nstars, 46, 46))
-        cutout = 23
-        bad_stars = []
+         
+            
+        cutout = 23  
+        array_of_stars = np.zeros((nstars, cutout*2, cutout*2))
+        
+        
         
         for i in range(nstars):        
             xpix = X_pix_stars[i]
             ypix = Y_pix_stars[i]
+            
+            ra = ra_stars[i]
+            dec = dec_stars[i]
 
             try:
-                x_pix_new, y_pix_new = centering_coords(cal_array, xpix, ypix, int(cutout/2)+1, show_stamps=True, how='sep', minarea=3)
-                if x_pix_new == xpix and y_pix_new == ypix:
+                
+                obj_pos_lsst_star = lsst.geom.SpherePoint(ra, dec, lsst.geom.degrees)
+                calexp_star_cutout = cal_exposure.getCutout(obj_pos_lsst_star, size=lsst.geom.Extent2I(cutout*2, cutout*2))
+                mask_stamp = calexp_star_cutout.getMask().array
+                
+                number_of_sat_pixels = np.sum(np.array([["1" in str(element) for element in row] for row in mask_stamp])) # saturated 
+                number_of_edge_pixels = np.sum(np.array([["4" in str(element) for element in row] for row in mask_stamp])) # EDGE
+                number_of_ND_pixels = np.sum(np.array([["8" in str(element) for element in row] for row in mask_stamp])) # No DATA
+                
+                if number_of_sat_pixels + number_of_edge_pixels + number_of_ND_pixels > 0:
+                    
+                    bad_stars.append(i)
+                    print('star with masked pixels (SAT/EDGE/NoDATA)')
+                    array_of_stars[i] = np.zeros((cutout*2, cutout*2))
+                    continue
+                
+                x_pix_new, y_pix_new = centering_coords(cal_array, xpix, ypix, int(cutout/2)+1, show_stamps=True, how='sep', minarea=3, flux_thresh=1.6, reject_nearby = True)
+                
+                if (x_pix_new == xpix and y_pix_new == ypix) or (x_pix_new == 0 and y_pix_new == 0):
                     
                     print('if centering is not working, we skip this star')
                     
                     bad_stars.append(i)
-                    array_of_stars[i] = np.zeros((46,46))
+                    array_of_stars[i] = np.zeros((cutout*2, cutout*2))
+                    print('star: ',i)
                     continue
                     
                 calexp_cutout_to_use = cal_array[round(y_pix_new[0])-cutout:round(y_pix_new[0])+cutout, round(x_pix_new[0])-cutout:round(x_pix_new[0])+cutout].copy(order='C')
@@ -4702,7 +4757,7 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common):
             
             except ValueError:
                 bad_stars.append(i)
-                array_of_stars[i] = np.zeros((46,46))
+                array_of_stars[i] = np.zeros((cutout*2,cutout*2))
                 
         stars_dict[v] = array_of_stars 
         
@@ -4711,22 +4766,80 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common):
     bad_stars = np.unique(bad_stars)
     print('bad stars: ', bad_stars)
     print('stars array: ', stars_dict[visit].shape)
+    
+    
+    
     if len(bad_stars) > 0:
+        
         stars_image = np.delete(stars_dict[visit], bad_stars, axis=0)
         stars_wimage = np.delete(stars_dict[worst_visit], bad_stars, axis=0)
-    
         print('stars array after: ', stars_image.shape)
+    
     
     else:
         stars_image = stars_dict[visit]
         stars_wimage = stars_dict[worst_visit]
+        
    
     starpairs = np.stack([stars_wimage, stars_image])
     
+    if show_stamps:
+        
+        plot_star_pairs(starpairs, ncols=5, figsize=(15, 6))
+
     return starpairs
 
 
-def get_Panchos_matching_kernel(starpairs):
+def plot_star_pairs(starpairs, ncols=4, figsize=(12, 3), cmap='gray'):
+    """
+    Plots pairs of star cutouts from two visits, side by side for comparison.
+
+    Parameters:
+    - starpairs: np.ndarray
+        Shape should be (2, N, H, W), where:
+        - 0th index: two visits (e.g., [worst_visit, visit])
+        - N: number of stars
+        - H, W: stamp dimensions (e.g., 46x46)
+    - ncols: int
+        Number of columns (number of star pairs shown per row).
+    - figsize: tuple
+        Size of the figure (width, height).
+    - cmap: str
+        Colormap for imshow.
+    """
+    assert starpairs.shape[0] == 2, "First dimension must be 2 (visits)."
+    n_stars = starpairs.shape[1]
+    nrows = int(np.ceil(n_stars / ncols))
+
+    fig, axs = plt.subplots(nrows=nrows * 2, ncols=ncols, figsize=(figsize[0], figsize[1] * nrows))
+    axs = np.array(axs).reshape(nrows * 2, ncols)
+
+    for i in range(n_stars):
+        row = (i // ncols) * 2
+        col = i % ncols
+
+        axs[row, col].imshow(starpairs[0, i], cmap=cmap)
+        axs[row, col].set_title(f"Star {i} - Worst")
+        axs[row, col].axis('off')
+
+        axs[row + 1, col].imshow(starpairs[1, i], cmap=cmap)
+        axs[row + 1, col].set_title(f"Star {i} - Visit")
+        axs[row + 1, col].axis('off')
+
+    # Hide any unused axes
+    for j in range(n_stars, ncols * nrows):
+        row = (j // ncols) * 2
+        col = j % ncols
+        axs[row, col].axis('off')
+        axs[row + 1, col].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+    return
+
+
+
+def get_Panchos_matching_kernel(starpairs, verbose=False):
     
     kern = kkernel(81)
     
@@ -4747,8 +4860,8 @@ def get_Panchos_matching_kernel(starpairs):
     #print('shape of sol from kernel pancho: ',sol.shape)
     
     sol /= sol.sum()
-    
-    print('sum of kernel: ', sol.sum())
+    if verbose:
+        print('sum of kernel: ', sol.sum())
     
     return sol
 
