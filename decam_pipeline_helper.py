@@ -67,6 +67,8 @@ def retrieve_stars_common(image, x_pix_stars, y_pix_stars, worst_image, x_pix_st
         
     return stars_in_common
 
+px = 2048.0
+py = 4096.0
 
 arcsec_to_pixel=0.27
 
@@ -79,7 +81,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
                     sfx='flx', save_stamps=False, well_subtracted=False, verbose=False, tp='after_ID',
                     area=None, thresh=None, mfactor=1, do_convolution=True, mode='Eridanus',
                     name_to_save='', type_kernel = 'mine', show_coord_correction=False, 
-                    stars_from='lsst_pipeline', how_centroid = 'sep', 
+                    stars_from='lsst_pipeline', how_centroid = 'sep', show_stamps_stars_profiles=False,
                     path_to_folder= '/home/pcaceres/LSST_notebooks/Results/HiTS/SIBLING/', 
                     check_convolution=True,minarea=np.pi * (0.5/arcsec_to_pixel)**2, flux_thresh=None, 
                     ap_radii = np.array([0.5, 0.75, 1, 1.25, 1.5]), jname=None):
@@ -555,7 +557,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
                 source_of_interest.loc[i,name_columns_mconvdown] = np.empty(len(ap_radii))
                 source_of_interest.loc[i,name_columns_mconvdownErr] = np.empty(len(ap_radii))
                 
-             #np.zeros(len(name_columns_mconvdownErr))
+            #np.zeros(len(name_columns_mconvdownErr))
             
             
             #source_of_interest.loc[i,name_columns_mconvdown] = np.empty(len(ap_radii))
@@ -611,6 +613,14 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
                     x_pix_1star = X_pix_stars[k]
                     y_pix_1star = Y_pix_stars[k]
                     mask_star_cutout = mask_im[round(round(y_pix_1star)-star_aperture):round(round(y_pix_1star)+star_aperture), round(round(x_pix_1star)-star_aperture):round(round(x_pix_1star)+star_aperture)]#calexp.getCutout(obj_pos_lsst_star, size=lsst.geom.Extent2I(star_aperture, star_aperture))
+                    if x_pix_1star > px-cutout or x_pix_1star < cutout or y_pix_1star > py-cutout or y_pix_1star < cutout:
+                        
+                        fluxConv_nJy.append(np.nan)
+                        fluxerrConv_nJy.append(np.nan)
+                        magsConv_nJy.append(np.nan)
+                        magserrConv_nJy.append(np.nan)
+                        saturated_star.append(k)
+                        continue
                     
                     number_of_sat_pixels = np.sum(mask_star_cutout) #um(sum(np.array([[str_digit in str(element) for element in row] for row in calexp_star_cutout.getMask().array])))
                     
@@ -625,7 +635,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
                         continue
                     
                     # cutout_star = 23 // before
-                    x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_1star, y_pix_1star, 13, show_stamps=False, how='sep', minarea=3)
+                    x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_1star, y_pix_1star, 13, show_stamps=False, how='sep', minarea=2, flux_thresh = '5s')
                     
                     f_conv, ferr_conv, f_convFlag = sep.sum_circle(calConv_image, x_pix_new, y_pix_new, star_aperture, var=calConv_variance, gain=4.0)
                                                             
@@ -694,7 +704,8 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     
     
     #print(profiles_stars)
-    # plotting airmas, seeing & calibration factor ############################################
+    
+    ####################### plotting airmas, seeing & calibration factor ###############################
 
     plt.figure(figsize=(10,6))
 
@@ -726,13 +737,9 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     
     # We only take the stars that were correctly subtracted in the image difference 
     # filtering stars ! ¨good stars¨ do not increase their flux to more than half their median maximally
-    
-    # keep_stars, = np.where(fluxconv_star_max/fluxconv_star_median < 1.5)
-    
+    # keep_stars, = np.where(fluxconv_star_max/fluxconv_star_median < 1.5)    
     # saturated_star
-    
     # ids_good_stars = np.array([item for item in range(nstars) if item not in saturated_star])
-    
     # print('saturated star: ', saturated_star)
     ##################################################################################
     
@@ -753,7 +760,6 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     RA_stars = RA_stars[id_good_stars]
     DEC_stars = DEC_stars[id_good_stars]
     
-     
     
     closest_indices = np.array([np.argmin(np.abs(mags_good_stars - mag)) for mag in round_magnitudes])
     column_w_mags = 'mag_ConvDown_nJy_{}_arcsec'.format(1.0)
@@ -800,7 +806,6 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
 
     # Step 3: Compute dispersion (standard deviation) row-wise, ignoring NaNs
     stars_science_disp = clipped_df.std(axis=1, skipna=True)
-    
 
     for ii in range(len(images)):
         # de 0 a 6
@@ -818,198 +823,33 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             pixel_star = wcs_cal.world_to_pixel(coord_star)
             x_pix_star = pixel_star[0]
             y_pix_star = pixel_star[1]
-            x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)        
-            #if np.any(np.fabs(star_stamp - wim)>0.01):
-            plt.imshow(calConv_image[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13])
-            plt.title('star = '+ str(idx_star))
-            plt.show()          
+            
+            if x_pix_star > px-cutout or x_pix_star < cutout or y_pix_star > py-cutout or y_pix_star < cutout:
+                continue
+            
+            x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 20, show_stamps=False, how='sep', minarea=3, flux_thresh=10.6)  
+            
+            if show_stamps_stars_profiles:
+                plt.imshow(calConv_image[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13])
+                plt.colorbar()
+                plt.title('star = '+ str(idx_star) + ' mag: ' + str(round_magnitudes[kk]))
+                plt.show()          
             #if ((star_stamp - wim)**2).sum()<0.005:
             #    profiles_stars['mag{}_{}'.format(round_magnitudes[kk], visits[ii])] = np.ones(15)
             #else:    
-            #    print('we dont reject this star ') 
+            #    print('we dont reject this star ')
+            
             prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
             profiles_stars['mag{}_{}'.format(round_magnitudes[kk], visits[ii])] = prof/max(prof)
-            
             star_stamp = calConv_image[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13]
             star_stamp /= star_stamp.sum()
+            
+            if np.shape(star_stamp) != (25,25):
+                continue
             
             if ((star_stamp - wim)**2).sum()>0.005:
                 profiles_stars['mag{}_{}'.format(round_magnitudes[kk], visits[ii])] = np.zeros(15)
             
-            #star_stamp = calConv_image[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13]
-            #star_stamp /= star_stamp.sum()
-            
-            
-            #plt.imshow(star_stamp - wim)
-            #plt.colorbar()
-            #plt.title('Residual')
-            #plt.show()
-
-            #print('are there values above 0.01? ',  np.any(np.fabs(star_stamp - wim)>0.01))
-            #print('square sum of the residuals: ', ((star_stamp - wim)**2).sum())
-            
-            #   profiles_stars['mag{}_{}'.format(round_magnitudes[0], visits[ii])] = np.zeros(15)
-            #    print('this star does not qualify')
-
-            #else:
-
-            #print('')
-        #idx_star = closest_indices[1] 
-        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        #pixel_star = wcs_cal.world_to_pixel(coord_star)
-        #x_pix_star = pixel_star[0]
-        #y_pix_star = pixel_star[1]
-        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
-        #star_stamp /= star_stamp.sum()
-        #
-        #if np.any(np.fabs(star_stamp - wim)>0.01):
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[1], visits[ii])] = np.zeros(15)
-        #    print('this star does not qualify')
-        #    
-        #    plt.imshow(star_stamp)
-        #    plt.colorbar()
-        #    plt.show()
-        #
-        #else:
-        #        
-        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[1], visits[ii])] = prof/max(prof)
-        #
-        #
-        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        #plt.title('star = '+ str(idx_star))
-        #plt.show()
-        #
-        #idx_star = closest_indices[2] 
-        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        #pixel_star = wcs_cal.world_to_pixel(coord_star)
-        #x_pix_star = pixel_star[0]
-        #y_pix_star = pixel_star[1]
-        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
-        #star_stamp /= star_stamp.sum()
-        #
-        #if np.any(np.fabs(star_stamp - wim)>0.01):
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[2], visits[ii])] = np.zeros(15)
-        #    print('this star does not qualify')
-#
-        #    plt.imshow(star_stamp)
-        #    plt.colorbar()
-        #    plt.show()
-        #
-        #else:
-        #        
-        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[2], visits[ii])] = prof/max(prof)
-        #
-        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        #plt.title('star = '+ str(idx_star))
-        #plt.show()
-        #
-        #idx_star = closest_indices[3]
-        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        #pixel_star = wcs_cal.world_to_pixel(coord_star)
-        #x_pix_star = pixel_star[0]
-        #y_pix_star = pixel_star[1]
-        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
-        #star_stamp /= star_stamp.sum()
-        #
-        #if np.any(np.fabs(star_stamp - wim)>0.01):
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[3], visits[ii])] = np.zeros(15)
-        #    print('this star does not qualify')
-        #    
-        #    plt.imshow(star_stamp)
-        #    plt.colorbar()
-        #    plt.show()
-        #
-        #else:
-        #        
-        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[3], visits[ii])] = prof/max(prof)
-        #
-        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        #plt.title('star = '+ str(idx_star))
-        #plt.show()
-        #
-        #idx_star = closest_indices[4]
-        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        #pixel_star = wcs_cal.world_to_pixel(coord_star)
-        #x_pix_star = pixel_star[0]
-        #y_pix_star = pixel_star[1]
-        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
-        #star_stamp /= star_stamp.sum()
-        #
-        #if np.any(np.fabs(star_stamp - wim)>0.01):
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[4], visits[ii])] = np.zeros(15)
-        #    print('this star does not qualify')
-        #    
-        #    plt.imshow(star_stamp)
-        #    plt.colorbar()
-        #    plt.show()
-        #
-        #else:
-        #        
-        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[4], visits[ii])] = prof/max(prof)
-        #
-        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        #plt.title('star = '+ str(idx_star))
-        #plt.show()
-        #
-        #idx_star = closest_indices[5]
-        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        #pixel_star = wcs_cal.world_to_pixel(coord_star)
-        #x_pix_star = pixel_star[0]
-        #y_pix_star = pixel_star[1]
-        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
-        #star_stamp /= star_stamp.sum()
-        #
-        #if np.any(np.fabs(star_stamp - wim)>0.01):
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[5], visits[ii])] = np.zeros(15)
-        #    print('this star does not qualify')
-        #    
-        #    plt.imshow(star_stamp)
-        #    plt.colorbar()
-        #    plt.show()
-        #
-        #else:
-        #        
-        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[5], visits[ii])] = prof/max(prof)
-        #
-        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        #plt.title('star = '+ str(idx_star))
-        #plt.show()
-        #
-        #idx_star = closest_indices[6]
-        #coord_star = SkyCoord(RA_stars[idx_star] * u.deg, DEC_stars[idx_star] * u.deg, frame='icrs')
-        #pixel_star = wcs_cal.world_to_pixel(coord_star)
-        #x_pix_star = pixel_star[0]
-        #y_pix_star = pixel_star[1]
-        #x_pix_new, y_pix_new = lp.centering_coords(calConv_image, x_pix_star, y_pix_star, 23, show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
-        #star_stamp = calConv_image[int(y_pix_star-12):int(y_pix_star+13), int(x_pix_star-12):int(x_pix_star+13)]
-        #star_stamp /= star_stamp.sum()
-        #
-        #if np.any(np.fabs(star_stamp - wim)>0.01):
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[6], visits[ii])] = np.zeros(15)
-        #    print('this star does not qualify')
-        #    
-        #    plt.imshow(star_stamp)
-        #    plt.colorbar()
-        #    plt.show()
-        #
-        #else:
-        #        
-        #    prof = lp.flux_profile_array(calConv_image,  x_pix_new[0], y_pix_new[0], 0.05, r_star)
-        #    profiles_stars['mag{}_{}'.format(round_magnitudes[6], visits[ii])] = prof/max(prof)
-        #
-        #plt.imshow(calConv_image[int(y_pix_star-12):int(y_pix_star+12), int(x_pix_star-12):int(x_pix_star+12)])
-        #plt.title('star = '+ str(idx_star))
-        #plt.show()
         
     if verbose:
         print('good_stars: ', id_good_stars)
@@ -1050,14 +890,14 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         
         fs_star = (np.array(clipped_df['star_{}_convDown_mag'.format(i+1)])).flatten()        
         fs_star_err = np.ndarray.flatten(np.array(stars_calc_byme['star_{}_convDown_magErr'.format(i+1)]))
-        
         fs_star = np.array([float(x) if str(x) != 'nan' else np.nan for x in fs_star])
         fs_star_err = np.array([float(x) if str(x) != 'nan' else np.nan for x in fs_star_err])        
-        mask = ~np.isnan(fs_star) & ~np.isnan(fs_star_err)        
-        #print(len(fs_star), len(fs_star_err), len(dates_to_plot))        
+        mask = ~np.isnan(fs_star) & ~np.isnan(fs_star_err)
+        #print(len(fs_star), len(fs_star_err), len(dates_to_plot))
         #print('fs_star: ',fs_star)
         #print('fs_err: ', fs_star_err)
         #print("mask:", mask, "valid points:", np.sum(mask))
+        
         if np.sum(mask) < 2:
             #print('sum of the mask: ', np.sum(mask))
             continue  # skip stars with too few valid points
@@ -1075,6 +915,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         #marker_labels = np.ones(len(dates_to_plot))*(int(i+1))
         #for w, label in enumerate(marker_labels):
         #    plt.annotate(str(int(label)), (dates_to_plot[w], stars_yarray[w]), color='green')
+        
     plt.xlabel('MJD', fontsize=15)
     plt.ylabel('$mag$ [AB] - mean(mag)', fontsize=15)
     plt.colorbar(s_m, label = 'Mean mag [AB]')
@@ -1150,11 +991,15 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
             if SIBLING!=None:
                 x, y, yerr = lp.compare_to(SIBLING, sfx='mag', factor=fa, beforeDate=57073)
                 ax.errorbar(x, y -  np.mean(y), yerr=yerr,  capsize=4, fmt='^', color=s_m.to_rgba(fa), markeredgewidth=3, markerfacecolor='None', ls ='dotted')
-            
+            else:
+                y = conv_mag
+                x = source_of_interest.dates
             #print(np.max(conv_mag - mean_mag))
             
             if max_sep <= max([np.max(np.abs(conv_mag - mean_mag)), np.max(np.abs(y -  np.mean(y)))]):
                 max_sep = max([np.max(np.abs(conv_mag - mean_mag)), np.max(np.abs(y -  np.mean(y)))])
+            
+            
             
     # This plots are for the labels
     if SIBLING!=None:
@@ -1233,7 +1078,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
 
     #plt.show()
     
-    lp.plot_star_profiles(profiles_stars, round_magnitudes, visits,  np.linspace(0.05, 6, 15), worst_visit, fwhm * arcsec_to_pixel, save_as = subsubfolder_source / 'curve_growth_stars.jpeg' )
+    lp.plot_star_profiles(profiles_stars, round_magnitudes, visits,  np.linspace(0.05, r_star, 15), worst_visit, fwhm * arcsec_to_pixel, save_as = subsubfolder_source / 'curve_growth_stars.jpeg' )
     
     if verbose:
         print('coords convol: ', coords_convol)
@@ -1356,10 +1201,16 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  ma
             xpix = X_pix_stars[i]
             ypix = Y_pix_stars[i]
             
+            if xpix > px-cutout or xpix < cutout or ypix > py-cutout or ypix < cutout:
+                
+                bad_stars.append(i)
+                array_of_stars[i] = np.zeros((cutout*2,cutout*2))
+                
+                continue
 
             try:
-                
-                x_pix_new, y_pix_new = lp.centering_coords(cal_array, xpix, ypix, int(cutout/2)+1, show_stamps=True, how='sep', minarea=3, flux_thresh=1.6, reject_nearby = True)
+                # int(cutout/2)+1
+                x_pix_new, y_pix_new = lp.centering_coords(cal_array, xpix, ypix, cutout, show_stamps=True, how='sep', minarea=3, flux_thresh=10.6, reject_nearby = True)
                 
                 if (x_pix_new == xpix and y_pix_new == ypix) or (x_pix_new == 0 and y_pix_new == 0):
                     
@@ -1386,7 +1237,8 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  ma
                         print('star: ',i)
                         
                     bad_stars.append(i)
-                    array_of_stars[i] = np.zeros((cutout*2, cutout*2))                                
+                    array_of_stars[i] = np.zeros((cutout*2, cutout*2)) 
+                    continue
 
                 calexp_bkg = cal_array[round(ypix)-2*cutout:round(ypix)+2*cutout, round(xpix)-2*cutout:round(xpix)+2*cutout].copy(order='C')
 
@@ -1402,7 +1254,7 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  ma
                 star_stamp = cal_array[round(y_pix_new[0])-12:round(y_pix_new[0])+13, round(x_pix_new[0])-12:round(x_pix_new[0])+13].copy(order='C')
                 star_stamp /= star_stamp.sum()
                 
-                if (((star_stamp - psf)**2).sum()>0.005):
+                if (((star_stamp - psf)**2).sum()>0.005): # 0.005
                     
                     #plt.imshow(star_stamp - psf)
                     #plt.colorbar()
@@ -1413,6 +1265,7 @@ def get_starpairs(calexp, worst_calexp, visit, worst_visit, stars_in_common,  ma
                         print('star: ',i)
                     bad_stars.append(i)
                     array_of_stars[i] = np.zeros((cutout*2, cutout*2))
+                    continue
                 
             
             except ValueError:
@@ -1493,7 +1346,18 @@ def check_psf(data_cal, stars_x_pix, star_y_pix, wcs_cal, var, mask, plot=False,
         
         #print('looking at star in position: ', x, y)
         number_stars+=1
+        
+        #mask_aux = mask[round(y)-cutout_for_psf:round(y)+cutout_for_psf+1, round(x)-cutout_for_psf:round(x)+cutout_for_psf+1]
+        
+        #plt.title('sum mask : ' + str(mask_aux.sum()))
+        #plt.imshow(data_cal[round(y)-cutout_for_psf:round(y)+cutout_for_psf+1, round(x)-cutout_for_psf:round(x)+cutout_for_psf+1])
+        #plt.show()
+        
+        if x > px-int(cutout/2) or x < int(cutout/2) or y > py-int(cutout/2) or y < int(cutout/2):
+            continue
+        
         x_pix_new, y_pix_new = lp.centering_coords(data_cal, x, y, int(cutout/2), show_stamps=False, how='sep', minarea=3, flux_thresh=1.6)
+        
         calexp_cutout_to_use = data_cal[round(y_pix_new[0])-cutout_for_psf:round(y_pix_new[0])+cutout_for_psf+1, round(x_pix_new[0])-cutout_for_psf:round(x_pix_new[0])+cutout_for_psf+1]
         
         mask_of_star_stamp = mask[round(y_pix_new[0])-cutout_for_psf:round(y_pix_new[0])+cutout_for_psf+1, round(x_pix_new[0])-cutout_for_psf:round(x_pix_new[0])+cutout_for_psf+1]
@@ -1506,6 +1370,8 @@ def check_psf(data_cal, stars_x_pix, star_y_pix, wcs_cal, var, mask, plot=False,
         if f/ferr<20 or np.sum(mask_of_star_stamp)>0:
             continue
         
+        if np.shape(calexp_cutout_to_use) != (2*cutout_for_psf+1,2*cutout_for_psf+1):
+            continue
         
         sum_stars += calexp_cutout_to_use
         #print('suma masks: ', np.sum(mask_of_star_stamp))
