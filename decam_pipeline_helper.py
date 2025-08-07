@@ -266,7 +266,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         
         TAP_service = vo.dal.TAPService("https://mast.stsci.edu/vo-tap/api/v0.1/ps1dr2/")
         job = TAP_service.run_async("""
-            SELECT objID, RAMean, DecMean, nDetections, ng, nr, ni, nz, ny, gPSFMag, rPSFMag, iPSFMag, zPSFMag, yPSFMag, gKronMag, iKronMag, ipsfLikelihood
+            SELECT objID, RAMean, DecMean, nDetections, ng, nr, ni, nz, ny, gPSFMag, rPSFMag, iPSFMag, gApMag, zPSFMag, yPSFMag, gKronMag, iKronMag, ipsfLikelihood
             FROM dbo.StackObjectView
             WHERE
             CONTAINS(POINT('ICRS', RAMean, DecMean), CIRCLE('ICRS', {}, {}, .13))=1
@@ -281,17 +281,20 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         log_abs_iPSF_likelihood = np.log10(np.abs(np.array(TAP_results['ipsfLikelihood'])))
 
         psf_gmag_stars = np.array(TAP_results['gPSFMag'])
+        Ap_gmag_stars = np.array(TAP_results['gApMag'])
         
         idx = np.where((RA_stars>ra_corner.min()) & (RA_stars<ra_corner.max()) & (DEC_stars>dec_corner.min()) & (DEC_stars < dec_corner.max()))
         
         RA_stars = RA_stars[idx]
         DEC_stars = DEC_stars[idx]
         psf_gmag_stars = psf_gmag_stars[idx]
+        Ap_gmag_stars  = Ap_gmag_stars[idx]
         
         ra_inds_sort = RA_stars.argsort()
         RA_stars = RA_stars[ra_inds_sort[::-1]]
         DEC_stars = DEC_stars[ra_inds_sort[::-1]]
         psf_gmag_stars = psf_gmag_stars[ra_inds_sort[::-1]]
+        Ap_gmag_stars = Ap_gmag_stars[ra_inds_sort[::-1]]
         
         if verbose:
             print('number of stars: ', len(RA_stars))
@@ -301,6 +304,7 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
         RA_stars = RA_stars[stars_within_mags]
         DEC_stars = DEC_stars[stars_within_mags]
         psf_gmag_stars = psf_gmag_stars[stars_within_mags]
+        Ap_gmag_stars = Ap_gmag_stars[stars_within_mags]
         
         if verbose:
             print('number of stars within mags 15.5 and 20: ', len(RA_stars))
@@ -747,21 +751,30 @@ def get_light_curve(images, fwhm, wcs_im, ra, dec, dates, visits, weights, masks
     #print('mags good stars: ',  mags_good_stars)
     #print('indexes where there is nan: ', np.where(np.isnan(mags_good_stars)))
     
-    idx_nan_mags, = np.where(np.isnan(magsconv_star_mean))
-    idx_var_mags, = np.where(magsconv_star_std > 1)
-    if verbose:
-        print('these stars are >1 mag variable: ', idx_var_mags)
-    id_good_stars = np.array([item for item in range(nstars) if item not in idx_nan_mags])
-    id_good_stars = np.array([item for item in id_good_stars if item not in idx_var_mags])
-    id_good_stars = np.array([item for item in id_good_stars if item not in saturated_star])
     
+    
+    #idx_nan_mags, = np.where(np.isnan(magsconv_star_mean))
+    #idx_var_mags, = np.where(magsconv_star_std > 1)
+    #print('idx_nan_mags: ', idx_nan_mags)
+    #print('idx_var_mags: ', idx_var_mags)
+    
+    #if verbose:
+    #    print('these stars are >1 mag variable: ', idx_var_mags)
+    #id_good_stars = np.array([item for item in range(nstars) if item not in idx_nan_mags]) # take away nan values
+    #id_good_stars = np.array([item for item in id_good_stars if item not in idx_var_mags])
+    
+    id_good_stars = np.array([item for item in range(nstars) if item not in saturated_star])
+    
+    #print('number nstars: ', nstars)
+    #print('length ap gmag array: ', len(Ap_gmag_stars))
     mags_good_stars = magsconv_star_mean[id_good_stars]
     psf_gmag_stars_good = psf_gmag_stars[id_good_stars]
     RA_stars = RA_stars[id_good_stars]
     DEC_stars = DEC_stars[id_good_stars]
+    Ap_gmag_stars = Ap_gmag_stars[id_good_stars]
     
+    closest_indices = np.array([np.argmin(np.abs(Ap_gmag_stars - mag)) for mag in round_magnitudes])
     
-    closest_indices = np.array([np.argmin(np.abs(mags_good_stars - mag)) for mag in round_magnitudes])
     column_w_mags = 'mag_ConvDown_nJy_{}_arcsec'.format(1.0)
     mean_conv_mag = np.nanmean(np.array(source_of_interest[column_w_mags]), dtype='float64')
     ids_stars_within_gal_mag, = np.where((magsconv_star_mean >= mean_conv_mag-0.5) & (magsconv_star_mean < mean_conv_mag+0.5))
