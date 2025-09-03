@@ -72,7 +72,8 @@ from scipy.spatial import cKDTree
 #from kernel_jorge_decompiled import * 
 from sklearn.cluster import KMeans
 from itertools import groupby
-
+import subprocess
+import json
 
 sys.path.append('/home/pcaceres/kkernel/lib/')
 sys.path.append('/home/pcaceres/kkernel/etc/')
@@ -2209,7 +2210,7 @@ def magzero_estimation(ra_center, dec_center, ra_corner, dec_corner, wcs, image,
 
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec,field='', cutout=20, save=False, title='', hist=False, sparse_obs=False, SIBLING=None, save_as='', do_lc_stars = False, nstars=10, seedstars=200, save_lc_stars = False, show_stamps=True, show_star_stamps=False, r_star = 6, correct_coord=False, correct_coord_after_conv=False, do_zogy=False, collection_coadd=None, plot_zogy_stamps=False, plot_coadd=False, instrument='DECam', sfx='flx', find_mag_zeropt = False, save_stamps=False, well_subtracted=False, verbose=False, tp='after_ID', area=None, thresh=None, mfactor=1, do_convolution=True, mode='Eridanus', name_to_save='', type_kernel = 'mine', show_coord_correction=False, stars_from='lsst_pipeline', how_centroid = 'sep', path_to_folder= '/home/pcaceres/LSST_notebooks/Results/HiTS/SIBLING/', check_convolution=True,minarea=np.pi * (0.5/arcsec_to_pixel)**2, flux_thresh=None, ap_radii = np.array([0.5, 0.75, 1, 1.25, 1.5]), jname=None, cutout_star=23, stars_params={'r_star':1, 'cutout':23, 'flux_thresh':10.6, 'minarea':3, 'na': 6}, show_kernel_stars=False, n_nights=3, pypher_reg_param = 1e-4, rerun_existing=False, na_galaxy=6):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, field='', cutout=20, save=False, title='', SIBLING=None, save_as='', do_lc_stars = False, save_lc_stars = False, show_stamps=True, show_star_stamps=False, correct_coord=False, correct_coord_after_conv=False, collection_coadd=None, plot_coadd=False, instrument='DECam', find_mag_zeropt = False, save_stamps=False, well_subtracted=False, verbose=False, do_convolution=True, mode='Eridanus', name_to_save='', type_kernel = 'mine', show_coord_correction=False, stars_from='lsst_pipeline', how_centroid = 'sep', path_to_folder= '/home/pcaceres/LSST_notebooks/Results/HiTS/SIBLING/', check_convolution=True, minarea=np.pi * (0.5/arcsec_to_pixel)**2, flux_thresh=None, ap_radii = np.array([0.5, 0.75, 1, 1.25, 1.5]), jname=None, stars_params={'r_star':1, 'cutout':23, 'flux_thresh':10.6, 'minarea':3, 'na': 6}, show_kernel_stars=False, n_nights=3, pypher_reg_param = 1e-4, rerun_existing=False, na_galaxy=6):
     
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
@@ -2227,13 +2228,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     cutout : [int] half pixels centered at the ra,dec where the stamp is plotted 
     save : [bool] if True, the plot of the light curve is saved 
     title : [string] title of the plot
-    hist : [bool] if True, it shows the histogram of the difference images 
     sparse_obs : [bool] if True, the xlabel of the light curve is in logarithmic scale
     SIBING : [string] directory of the file to Jorge's light curve 
     save_as : [string] name of the plot figure that will be saved, by default this are stored in the light_curve/ folder
     do_lc_stars : [bool]
-    nstars : [int]
-    seedstars : [int]
     save_lc_stars : [bool]
     show_stamps : [bool]
     show_star_stamps : [bool]
@@ -2246,6 +2244,11 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     """
 
     ####### Setting empty dictionaries and arrays ##################################################
+    
+    params = locals().copy()
+    #print('params: ', params)
+    
+    
     Data_science = {}
     Data_convol = {}
     Data_coadd = {}
@@ -2336,6 +2339,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     ##############################################################################################################
     
     
+    
+    
     if mode=='HiTS' or mode=='HITS':
         files_to_sibling = '/home/pcaceres/LSST_notebooks/SIBLING_sources_usingMPfilter_andPCB_comparison.csv'
         sibling_dataset = pd.read_csv(files_to_sibling, index_col='internalID')
@@ -2363,6 +2368,27 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         print('we already ran this')
         return 
     #########################
+    
+    # We save the parameter file for reproducibility
+    
+    # we store the git version of the code we are at.
+    
+    try:
+        git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
+        params["git_commit"] = git_hash
+        
+    except Exception:
+        params["git_commit"] = "unknown"
+    
+    with open(subsubfolder_source / "params_run.json", "w") as f:
+        json.dump({k: str(v) for k, v in params.items()}, f, indent=2)
+
+    with open(subsubfolder_source / "params_run.txt", "w") as f:
+        for k, v in params.items():
+            f.write(f"{k} = {v}\n")
+    
+    
+    ################################
     
     # Here we sort the visits by the date 
     dates_aux, visits_aux = Order_Visits_by_Date(repo, visits, ccd_num, collection_diff)
@@ -3032,8 +3058,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 #
                         #s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
                         #ax.imshow(calConv_image, vmin=0, vmax=500)
-                        #ax.set_xlim(x_pix_new - cutout_star, x_pix_new + cutout_star)
-                        #ax.set_ylim(y_pix_new - cutout_star, y_pix_new + cutout_star)
+                        #ax.set_xlim(x_pix_new - stars_params['cutout'], x_pix_new + stars_params['cutout'])
+                        #ax.set_ylim(y_pix_new - stars_params['cutout'], y_pix_new + stars_params['cutout'])
                         #ax.add_patch(plt.Circle((x_pix_new, y_pix_new), radius=star_aperture, color=neon_green, fill=False))
                         #ax.set_title('star number {} in convolved image'.format(k+1))
                         #cbar = plt.colorbar(s_m, cax=ax)
@@ -3049,8 +3075,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                         plt.colorbar()
                         plt.scatter([x_pix_new], [y_pix_new], color='r', marker='*') 
                         
-                        plt.xlim(x_pix_new - cutout_star, x_pix_new + stars_params['cutout'])
-                        plt.ylim(y_pix_new - cutout_star, y_pix_new + stars_params['cutout'])
+                        plt.xlim(x_pix_new - stars_params['cutout'], x_pix_new + stars_params['cutout'])
+                        plt.ylim(y_pix_new - stars_params['cutout'], y_pix_new + stars_params['cutout'])
                         #ax.add_patch(plt.Circle((x_pix_new, y_pix_new), radius=star_aperture, color=neon_green, fill=False))
                         plt.title('star number {} in convolved image'.format(k+1))
                         #cbar = plt.colorbar(s_m, cax=ax)
@@ -3059,8 +3085,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
                         
                         if do_diff_lc:
                             plt.imshow(np.arcsinh(diffexp_calib_array))
-                            plt.xlim(x_pix_1star - cutout_star, x_pix_1star + stars_params['cutout'])
-                            plt.ylim(y_pix_1star - cutout_star, y_pix_1star + stars_params['cutout'])
+                            plt.xlim(x_pix_1star - stars_params['cutout'], x_pix_1star + stars_params['cutout'])
+                            plt.ylim(y_pix_1star - stars_params['cutout'], y_pix_1star + stars_params['cutout'])
 
                             plt.title('star number {} in difference image'.format(k+1))
                             plt.colorbar()
@@ -3471,7 +3497,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     
     fig = plt.figure(figsize=(10,6))
     ax = fig.add_subplot(111)
-    ax.set_title('Clipped average magnitude dispersion within an Aperture {} arcsec'.format(r_star), fontsize=15)
+    ax.set_title('Clipped average magnitude dispersion within an Aperture {} arcsec'.format(stars_params['r_star']), fontsize=15)
     
     evaluate_mags = np.array([14.5, 15.5, 16.5, 17.5, 18.5, 19.5, 20.5, 21.5, 22.5])
     stars_at_given_mag = [id_good_stars[np.where((mags_stars_lsst>=evaluate_mags[k]) & (mags_stars_lsst<evaluate_mags[k+1]))] for k in range(len(evaluate_mags)-1)]
@@ -3773,26 +3799,26 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
     ##### Calculate Excess Variance ###########
     
     
-    sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted = Excess_variance(np.array(source_of_interest['mag_ConvDown_nJy_1.0_arcsec']), np.array(source_of_interest['magErr_ConvDown_nJy_1.0_arcsec']))
+    # sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted = Excess_variance(np.array(source_of_interest['mag_ConvDown_nJy_1.0_arcsec']), np.array(source_of_interest['magErr_ConvDown_nJy_1.0_arcsec']))
     
     #print('sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted: ', sigma_rms_sq, errsigma_rms_sq, sigma_rms_subtracted)
     
-    if mode=='HiTS' or mode=='HITS' and SIBLING is not None and jname is not None and os.path.exists(SIBLING):
-        
-        x, m, merr = compare_to(SIBLING, sfx='mag', factor=0.75)
-        
-        
-        sibling_dataset.loc[jname, 'Excess_variance_pcb_wkernel_{}'.format(type_kernel)] = sigma_rms_sq
-        sibling_dataset.loc[jname, 'Excess_variance_e_pcb_wkernel_{}'.format(type_kernel)] = errsigma_rms_sq
-        sibling_dataset.loc[jname, 'Excess_variance_cor_pcb_wkernel_{}'.format(type_kernel)] = sigma_rms_subtracted
-        #sibling_dataset.to_csv('SIBLING_sources_usingMPfilter_andPCB_comparison.csv')
-    
-        sigma_rms_sq_jge, errsigma_rms_sq_jge, sigma_rms_subtracted_jge = Excess_variance(y, yerr)
-        
-        sibling_dataset.loc[jname, 'Excess_variance_jge'] = sigma_rms_sq_jge
-        sibling_dataset.loc[jname, 'Excess_variance_e_jge'] = errsigma_rms_sq_jge
-        sibling_dataset.loc[jname, 'Excess_variance_cor_jge'] = sigma_rms_subtracted_jge
-        #sibling_dataset.to_csv('SIBLING_sources_usingMPfilter_andPCB_comparison.csv')
+    #if mode=='HiTS' or mode=='HITS' and SIBLING is not None and jname is not None and os.path.exists(SIBLING):
+    #    
+    #    x, m, merr = compare_to(SIBLING, sfx='mag', factor=0.75)
+    #    
+    #    
+    #    sibling_dataset.loc[jname, 'Excess_variance_pcb_wkernel_{}'.format(type_kernel)] = sigma_rms_sq
+    #    sibling_dataset.loc[jname, 'Excess_variance_e_pcb_wkernel_{}'.format(type_kernel)] = errsigma_rms_sq
+    #    sibling_dataset.loc[jname, 'Excess_variance_cor_pcb_wkernel_{}'.format(type_kernel)] = sigma_rms_subtracted
+    #    #sibling_dataset.to_csv('SIBLING_sources_usingMPfilter_andPCB_comparison.csv')
+    #
+    #    sigma_rms_sq_jge, errsigma_rms_sq_jge, sigma_rms_subtracted_jge = Excess_variance(y, yerr)
+    #    
+    #    sibling_dataset.loc[jname, 'Excess_variance_jge'] = sigma_rms_sq_jge
+    #    sibling_dataset.loc[jname, 'Excess_variance_e_jge'] = errsigma_rms_sq_jge
+    #    sibling_dataset.loc[jname, 'Excess_variance_cor_jge'] = sigma_rms_subtracted_jge
+    #    #sibling_dataset.to_csv('SIBLING_sources_usingMPfilter_andPCB_comparison.csv')
     
     ########################################################################################
     ###############################  Profiles ##############################################
@@ -3826,7 +3852,7 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     #plt.show()
     
-    plot_star_profiles(profiles_stars, round_magnitudes, visits_aux,  np.linspace(0.05, r_star, 15), worst_seeing_visit, Seeing, save_as = subsubfolder_source / 'curve_growth_stars.jpeg' )
+    plot_star_profiles(profiles_stars, round_magnitudes, visits_aux,  np.linspace(0.05, stars_params['r_star'], 15), worst_seeing_visit, Seeing, save_as = subsubfolder_source / 'curve_growth_stars.jpeg' )
     
     if do_diff_lc:
         stamps(Data_science, Data_convol, Data_diff, Data_coadd, coords_science, coords_convol, coords_coadd, source_of_interest, Results_star, visits_aux, KERNEL, Seeing, SIBLING = SIBLING, cut_aux=cutout, r_diff = seeing * sigma2fwhm * np.array([0.75]), r_science=worst_seeing * sigma2fwhm * np.array([0.75]),  field='', name='', first_mjd = 58810, folder=subsubfolder_source)
@@ -5275,7 +5301,7 @@ def Select_table_from_one_exposure(repo, visit, ccdnum, collection_diff, well_su
   
     return phot_table
 
-def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = True, tp='after_ID', mode='HITS'):
+def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = True, mode='HITS'):
     """
     From the src tables of LSST for each exposure, we select the sources that were used for photometry,
     which are the stars. We add them all in a dictionary whose keys are the visit number, and the 
@@ -5310,7 +5336,7 @@ def Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtract
     
     return Dict_tables
 
-def Join_Tables_from_LSST_old(repo, visits, ccdnum, collection_diff, well_subtracted = True, tp ='after_ID', mode='HITS'):
+def Join_Tables_from_LSST_old(repo, visits, ccdnum, collection_diff, well_subtracted = True, mode='HITS'):
     """
     Joins src tables of LSST on the ra, dec truncated of the visits 
     """
@@ -5320,7 +5346,7 @@ def Join_Tables_from_LSST_old(repo, visits, ccdnum, collection_diff, well_subtra
     if type(visits) == int:
         visits = [visits]
 
-    dictio =  Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = well_subtracted, tp=tp, mode=mode)
+    dictio =  Gather_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted = well_subtracted, mode=mode)
     big_table = 0
     i=0
     columns_picked = ['src_id', 'coord_ra', 'coord_dec', 'coord_ra_ddegrees', 'coord_dec_ddegrees', 'base_CircularApertureFlux_3_0_instFlux', 'base_PsfFlux_instFlux', 'base_PsfFlux_mag', 'base_PsfFlux_magErr','slot_PsfFlux_mag', 'phot_calib_mean', 'base_PixelFlags_flag_saturated', 'base_SdssCentroid_x', 'base_SdssCentroid_y']
@@ -5361,7 +5387,7 @@ def Join_Tables_from_LSST_old(repo, visits, ccdnum, collection_diff, well_subtra
 
 
 def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,
-                          well_subtracted=True, tp='after_ID', mode='HITS',
+                          well_subtracted=True, mode='HITS',
                           match_tolerance=0.5*u.arcsec):
     """
     Joins LSST src tables from different visits by matching on sky coordinates
@@ -5393,7 +5419,7 @@ def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,
 
     dictio = Gather_Tables_from_LSST(
         repo, visits, ccdnum, collection_diff,
-        well_subtracted=well_subtracted, tp=tp, mode=mode
+        well_subtracted=well_subtracted, mode=mode
     )
 
     columns_picked = [
@@ -5458,7 +5484,7 @@ def Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,
     return big_table
 
 
-def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted =False, tp='after_ID', save=False, isolated=True, mode='HITS', ccd=None, field=None):
+def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subtracted =False, save=False, isolated=True, mode='HITS', ccd=None, field=None):
     """
     returns the common stars used for calibration
 
@@ -5476,7 +5502,7 @@ def Inter_Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff, well_subt
     ------
     phot_table [pandas dataFrame]:
     """
-    big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,well_subtracted = well_subtracted, tp=tp, mode=mode)
+    big_table = Join_Tables_from_LSST(repo, visits, ccdnum, collection_diff,well_subtracted = well_subtracted, mode=mode)
     phot_table = big_table.dropna()
     #if isolated:
     #    phot_table = phot_table.drop_duplicates(subset=['coord_ra_trunc', 'coord_dec_trunc'])
@@ -5986,11 +6012,11 @@ def Excess_variance(mag, magerr):
     sigma_rms_sq, sigma_rms_sq_err, sigma_rms_sq - sigma_rms_sq_err
 
     """
-    mean_mag = np.mean(mag)
+    mean_mag = np.nanmean(mag)
     nobs = float(len(mag))
     a = (mag - mean_mag)**2
-    sigma_rms_sq = np.sum(a - magerr**2) / (nobs * mean_mag**2)
-    sd = 1/nobs * np.sum(((a - magerr**2) - sigma_rms_sq * mean_mag**2 )**2)
+    sigma_rms_sq = np.nansum(a - magerr**2) / (nobs * mean_mag**2)
+    sd = 1/nobs * np.nansum(((a - magerr**2) - sigma_rms_sq * mean_mag**2 )**2)
     sigma_rms_sq_err = sd / (mean_mag**2 * nobs**(0.5))
 
     return sigma_rms_sq, sigma_rms_sq_err, sigma_rms_sq - sigma_rms_sq_err
