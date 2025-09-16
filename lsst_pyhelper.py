@@ -48,7 +48,8 @@ from astropy.convolution import Gaussian2DKernel
 from scipy.signal import convolve as scipy_convolve
 from astropy.convolution import convolve
 import pickle
-from photutils.centroids import centroid_2dg
+from photutils.centroids import centroid_2dg, centroid_com, centroid_sources
+
 from scipy import ndimage 
 import scipy
 from photutils.psf import create_matching_kernel 
@@ -74,6 +75,8 @@ from sklearn.cluster import KMeans
 from itertools import groupby
 import subprocess
 import json
+from astropy.nddata import Cutout2D
+
 
 sys.path.append('/home/pcaceres/kkernel/lib/')
 sys.path.append('/home/pcaceres/kkernel/etc/')
@@ -2073,9 +2076,9 @@ def centering_coords(data_cal, x_pix, y_pix, side_half_length_box, show_stamps, 
             
     elif how=='photutils':
         
-        x_pix_aux, y_pix_aux = centroid_2dg(sub_data)
-        x_pix_aux = np.array([x_pix_aux])
-        y_pix_aux = np.array([y_pix_aux])
+        x_pix_aux, y_pix_aux = centroid_com(sub_data)
+        #x_pix_aux = np.array([x_pix_aux])
+        #y_pix_aux = np.array([y_pix_aux])
         
     x_pix_OgImage = x_pix_aux + int(x_pix - side_half_length_box)
     y_pix_OgImage = y_pix_aux + int(y_pix - side_half_length_box)
@@ -2220,7 +2223,7 @@ def decode_mask_value(value, mask_plane_dict):
     return active_planes
 
 
-def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, field='', cutout=20, save=False, title='', SIBLING=None, save_as='', do_lc_stars = False, save_lc_stars = False, show_stamps=True, show_psf_stars= False, show_star_stamps=False, correct_coord=False, correct_coord_after_conv=False, collection_coadd=None, plot_coadd=False, instrument='DECam', find_mag_zeropt = False, save_stamps=False, well_subtracted=False, verbose=False, do_convolution=True, mode='Eridanus', name_to_save='', type_kernel = 'mine', show_coord_correction=False, stars_from='lsst_pipeline', how_centroid = 'sep', path_to_folder= '/home/pcaceres/LSST_notebooks/Results/HiTS/SIBLING/', check_convolution=True, minarea=np.pi * (0.5/arcsec_to_pixel)**2, flux_thresh=None, ap_radii = np.array([0.5, 0.75, 1, 1.25, 1.5]), jname=None, stars_params={'r_star':1, 'cutout':23, 'flux_thresh':10.6, 'minarea':3, 'na': 6}, show_kernel_stars=False, n_nights=3, pypher_reg_param = 1e-4, rerun_existing=False, na_galaxy=6):
+def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, ra, dec, field='', cutout=20, save=False, title='', SIBLING=None, save_as='', do_lc_stars = False, save_lc_stars = False, show_stamps=True, show_psf_stars= False, show_star_stamps=False, correct_coord=False, correct_coord_after_conv=False, collection_coadd=None, plot_coadd=False, instrument='DECam', find_mag_zeropt = False, save_stamps=False, well_subtracted=False, verbose=False, do_convolution=True, mode='Eridanus', name_to_save='', type_kernel = 'mine', show_coord_correction=False, stars_from='lsst_pipeline', how_centroid = 'sep', path_to_folder= '/home/pcaceres/LSST_notebooks/Results/HiTS/SIBLING/', check_convolution=True, minarea=np.pi * (0.5/arcsec_to_pixel)**2, flux_thresh=None, ap_radii = np.array([0.5, 0.75, 1, 1.25, 1.5]), jname=None, stars_params={'r_star':1, 'cutout':23, 'flux_thresh':10.6, 'minarea':3, 'na': 6}, show_kernel_stars=False, n_nights=3, pypher_reg_param = 1e-4, rerun_existing=False, na_galaxy=6, do_fine_psf=False):
     
     """
     Does aperture photometry of the source in ra,dec position and plots the light curve.
@@ -2702,9 +2705,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             stars_between_two_exp = stars_between_two_exp[(stars_between_two_exp['base_PsfFlux_mag_{}'.format(worst_seeing_visit)] >= 16) & (stars_between_two_exp['base_PsfFlux_mag_{}'.format(worst_seeing_visit)] <= 21)]
             
             #gPsfMag = stars_between_two_exp['base_PsfFlux_mag_{}'.format(worst_seeing_visit)]
-            wim, _= check_psf_after_conv(repo, worst_seeing_visit, ccd_num, collection_diff, conv_image_array = None, plot=show_psf_stars, sn=20, cutout=30, isolated=True, dist_thresh=30, stars_params=stars_params)
+            wim, _= check_psf_after_conv(repo, worst_seeing_visit, ccd_num, collection_diff, conv_image_array = None, plot=show_psf_stars, sn=20, cutout=30, isolated=True, dist_thresh=30, stars_params=stars_params, do_fine_psf = do_fine_psf)
 
-            im, _= check_psf_after_conv(repo, visits_aux[i], ccd_num, collection_diff, conv_image_array = None, plot=show_psf_stars, sn=20, cutout=30, isolated=True, dist_thresh=30, stars_params=stars_params)
+            im, _= check_psf_after_conv(repo, visits_aux[i], ccd_num, collection_diff, conv_image_array = None, plot=show_psf_stars, sn=20, cutout=30, isolated=True, dist_thresh=30, stars_params=stars_params, do_fine_psf = do_fine_psf)
             
             if verbose:
                 print('Number of stars to make the conv: ', len(stars_between_two_exp))
@@ -4490,7 +4493,34 @@ def return_isolated(x, y, thresh=40):
     return idxs
 
 
-def check_psf_after_conv(repo, visit, ccdnum, collection_calexp, conv_image_array = None, plot=False, sn=5, cutout=24, cutout_for_psf=12, isolated=True, dist_thresh=40, flux_thresh=None, verbose=False, stars_params=None):
+def fine_psf(x_pix_stars, y_pix_stars, data, size=31):
+    '''
+    
+    Create fine PSF
+    
+    
+    '''
+
+    array_stars = []
+    
+    for x, y in zip(x_pix_stars, y_pix_stars): # constructing psf-kernel for convolution
+        #print(x, y)
+        xc, yc = centroid_sources(data, x, y, box_size=size, centroid_func=centroid_com)
+        cutout = Cutout2D(data, (xc[0], yc[0]), (size, size), mode='strict')
+        norm_ctt = cutout.data/np.sum(cutout.data)
+        array_stars.append(norm_ctt)
+
+    array_stars = np.array(array_stars).T
+    psf_image = np.zeros((size, size))
+    for c in range(size):
+        for l in range(size):
+            psf_image[c, l] = np.median(array_stars[c][l])
+    normalized_psf = psf_image/(np.sum(psf_image))
+    
+    return normalized_psf
+
+
+def check_psf_after_conv(repo, visit, ccdnum, collection_calexp, conv_image_array = None, plot=False, sn=5, cutout=24, cutout_for_psf=12, isolated=True, dist_thresh=40, flux_thresh=None, verbose=False, stars_params=None, do_fine_psf=False):
     '''
 
     Finds the empirical psf for an image processed with the LSST Science Pipelines
@@ -4564,6 +4594,8 @@ def check_psf_after_conv(repo, visit, ccdnum, collection_calexp, conv_image_arra
     stars_array = []
     stars_coords_array = []
     sn_stars_array = []
+    x_pix_stars = []
+    y_pix_stars = []
     
     for x, y in zip(x_pix, y_pix):
 
@@ -4571,6 +4603,7 @@ def check_psf_after_conv(repo, visit, ccdnum, collection_calexp, conv_image_arra
         #x_pix, y_pix = wcs.skyToPixel(obj_pos_lsst)
         
         x_pix_new, y_pix_new = centering_coords(data_cal, x, y, cutout_for_psf+1, show_stamps=plot, how='sep', minarea=stars_params['minarea'], flux_thresh=stars_params['flux_thresh'], reject_nearby=True, na = stars_params['na'])
+        
         
         if x_pix_new==0 and y_pix_new==0:
             continue
@@ -4597,30 +4630,28 @@ def check_psf_after_conv(repo, visit, ccdnum, collection_calexp, conv_image_arra
         d = (coords_cutout[0] - peak_pos[0])**2 + (coords_cutout[1] - peak_pos[1])**2 
                     
         if d>3:
-            
             continue
-        
         
         stars_array.append(calexp_cutout_to_use)
         stars_coords_array.append(coords_cutout)
         sn_stars_array.append(flux[0]/fluxerr[0])
         
         sum_stars += calexp_cutout_to_use
-        number_stars+=1
+        number_stars += 1
         
-        #if plot:
-        #    
-        #    #plot_single_stars(np.array(stars_array), coords=coords_stars_array, ncols=4, figsize=(12, 3), cmap='gray', annotate_sum=True)
-#
-        #    fig = plt.figure(figsize=(8, 5))
-        #    m, s = np.mean(calexp_cutout_to_use), np.std(calexp_cutout_to_use)
-        #    plt.imshow(calexp_cutout_to_use, cmap='rocket', origin='lower', vmin=m, vmax=m+2*s)
-        #    plt.colorbar()
-        #    plt.scatter(cutout_for_psf, cutout_for_psf, color=neon_green, marker='x', linewidth=3, label='rounded center')
-        #    plt.title('star number {} in sicence after centering'.format(number_stars), fontsize=15)
-        #    plt.tight_layout()
-        #    plt.legend()
-        #    plt.show()
+        x_pix_stars.append(x_pix_new)
+        y_pix_stars.append(y_pix_new)
+    
+    if do_fine_psf:
+        
+        stars_sum_norm = fine_psf(x_pix_stars, y_pix_stars, data_cal, size=cutout_for_psf*2+1)
+        
+        if conv_image_array is not None:
+            stars_sum_conv_norm = fine_psf(x_pix_stars, y_pix_stars, conv_image_array, size=cutout_for_psf*2+1)
+        else:
+            stars_sum_conv_norm = None
+            
+        return stars_sum_norm, stars_sum_conv_norm
     
     if plot:
         plot_single_stars(np.array(stars_array), coords=stars_coords_array, ncols=4, figsize=(12, 3), cmap='gray', annotate_sum=False, annotate_sn = True, sn=sn_stars_array)
