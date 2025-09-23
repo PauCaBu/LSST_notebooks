@@ -2785,7 +2785,8 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
             
         if verbose:
             print('mask values: ', mask_vals)
-        bad_mask = ("BAD" in mask_vals) or ("SAT" in mask_vals) or ("EDGE" in mask_vals) or ("CR" in mask_vals) or ("NO_DATA" in mask_vals) or ("DETECTED_NEGATIVE" in mask_vals)
+        
+        
         
         #if bad_mask:
             
@@ -2819,12 +2820,15 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         #print('number_of_crosstalk_pixels: ', number_of_crosstalk_pixels)
         
         
+        bad_mask = ("BAD" in mask_vals) or ("SAT" in mask_vals) or ("EDGE" in mask_vals) or ("CR" in mask_vals) or ("NO_DATA" in mask_vals) or ("DETECTED_NEGATIVE" in mask_vals) or ("NOT_DEBLENDED" in mask_vals)
         
         
-        #if mode == 'Eridanus':
+        if mode == 'Eridanus':
+            bad_mask = ("BAD" in mask_vals) or ("SAT" in mask_vals) or ("EDGE" in mask_vals) or ("CR" in mask_vals) or ("NO_DATA" in mask_vals) or ("DETECTED_NEGATIVE" in mask_vals)# or ("NOT_DEBLENDED" in mask_vals)
         #    number_of_bad_pixels = number_of_edge_pixels + number_of_ND_pixels #+ number_of_CR_pixels
         
-        #if mode == 'HiTS' or mode == 'HITS':
+        if mode == 'HiTS' or mode == 'HITS':
+            bad_mask = ("BAD" in mask_vals) or ("SAT" in mask_vals) or ("EDGE" in mask_vals) or ("CR" in mask_vals) or ("NO_DATA" in mask_vals) or ("DETECTED_NEGATIVE" in mask_vals) or ("NOT_DEBLENDED" in mask_vals)
         #    number_of_bad_pixels = number_of_edge_pixels + number_of_ND_pixels + number_of_CR_pixels + number_of_sat_pixels + number_of_suspect_pixels + number_of_Rejected_pixels + number_of_DN_pixels + number_of_crosstalk_pixels 
 
         if bad_mask or len(mask_vals)==0: #number_of_bad_pixels > 0 or np.sum(np.sum(conv_stamp_gal))< 100:
@@ -3299,7 +3303,9 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
 
     s_m = matplotlib.cm.ScalarMappable(cmap=c_m, norm=norm)
     s_m.set_array([])
-
+    
+    fluxconv_star_mean = np.array([np.nanmean(np.array(stars_calc_byme['star_{}_convDown_fnJy'.format(i+1)], dtype='float64')) for i in range(nstars)])
+    
 
     fluxconv_star_median = np.array([np.median(stars_calc_byme['star_{}_convDown_fnJy'.format(i+1)]) for i in range(nstars)])
     fluxconv_star_min = np.array([np.nanmin(np.array(stars_calc_byme['star_{}_convDown_fnJy'.format(i+1)],dtype='float64')) for i in range(nstars)])
@@ -3501,10 +3507,10 @@ def get_light_curve(repo, visits, collection_diff, collection_calexp, ccd_num, r
         fs_star = (np.array(stars_calc_byme['star_{}_convDown_fnJy'.format(i+1)])).flatten()
         fs_star_err = np.ndarray.flatten(np.array(stars_calc_byme['star_{}_convDown_fnJy_err'.format(i+1)]))
                     
-        stars_yarray = np.array(fs_star - np.median(fs_star))
+        stars_yarray = np.array(fs_star - np.nanmean(np.array(fs_star, dtype='float64')))
         try:
             
-            plt.errorbar(dates_aux, stars_yarray, yerr= fs_star_err, capsize=4, fmt='s', ls='solid', color = s_m.to_rgba(fluxconv_star_median[i]))
+            plt.errorbar(dates_aux, stars_yarray, yerr= fs_star_err, capsize=4, fmt='s', ls='solid', color = s_m.to_rgba(fluxconv_star_mean[i]))
         except ValueError:
             continue
         marker_labels = np.ones(len(dates_aux))*(int(i+1))
